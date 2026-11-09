@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Drive the cloud render from the PC — same flow the phone page uses.
+ * Drive the cloud render from the PC â€” same flow the phone page uses.
  * Handy for testing the workflow before trusting the phone with it.
  *
  *   $env:GITHUB_TOKEN = 'github_pat_...'
@@ -46,14 +46,16 @@ async function api(url, { method = 'GET', body } = {}) {
   const text = await res.text();
   let data = null;
   if (text) { try { data = JSON.parse(text); } catch { data = { message: text.slice(0, 300) }; } }
-  if (!res.ok) throw new Error(`${method} ${url} → ${res.status} ${data?.message || ''}`);
+  if (!res.ok) throw new Error(`${method} ${url} â†’ ${res.status} ${data?.message || ''}`);
   return data;
 }
 
 try {
   const repo = await api(`/repos/${REPO}`);
   const before = await api(`/repos/${REPO}/actions/runs?per_page=5`);
-  const maxBefore = Math.max(0, ...(before.workflow_runs || []).map((r) => r.run_number));
+  // Run numbers are per-workflow (pages and render both start at 1); ids are
+  // unique across the repo, so the newest id is the reliable watermark.
+  const maxBefore = Math.max(0, ...(before.workflow_runs || []).map((r) => r.id));
 
   const inputs = {
     source_url: SOURCE,
@@ -65,7 +67,7 @@ try {
     broll: args.broll || 'on',
     source_release_tag: args['source-release-tag'] || '',
   };
-  console.log(`dispatch → ${repo.full_name} (${repo.default_branch})`);
+  console.log(`dispatch â†’ ${repo.full_name} (${repo.default_branch})`);
   await api(`/repos/${REPO}/actions/workflows/render.yml/dispatches`, {
     method: 'POST',
     body: { ref: repo.default_branch, inputs },
@@ -75,28 +77,28 @@ try {
   for (let i = 0; i < 40 && !run; i++) {
     await sleep(3000);
     const runs = await api(`/repos/${REPO}/actions/runs?event=workflow_dispatch&per_page=10`);
-    run = (runs.workflow_runs || []).find((r) => /render\.yml$/.test(r.path || '') && r.run_number > maxBefore) || null;
+    run = (runs.workflow_runs || []).find((r) => /render\.yml$/.test(r.path || '') && r.id > maxBefore) || null;
   }
-  if (!run) throw new Error('run not found — check the Actions tab');
-  console.log(`run #${run.run_number} → ${run.html_url}`);
+  if (!run) throw new Error('run not found â€” check the Actions tab');
+  console.log(`run #${run.run_number} â†’ ${run.html_url}`);
 
   const t0 = Date.now();
   let last = '';
   for (;;) {
     await sleep(10000);
     run = await api(`/repos/${REPO}/actions/runs/${run.id}`);
-    const line = `${run.status}${run.conclusion ? ` (${run.conclusion})` : ''} · ${Math.round((Date.now() - t0) / 1000)}s`;
+    const line = `${run.status}${run.conclusion ? ` (${run.conclusion})` : ''} Â· ${Math.round((Date.now() - t0) / 1000)}s`;
     if (line !== last) { console.log(line); last = line; }
     if (run.status === 'completed') break;
   }
-  if (run.conclusion !== 'success') throw new Error(`run ${run.conclusion} — see ${run.html_url}`);
+  if (run.conclusion !== 'success') throw new Error(`run ${run.conclusion} â€” see ${run.html_url}`);
 
   const rel = await api(`/repos/${REPO}/releases/tags/render-${run.run_number}`);
   fs.mkdirSync(OUT, { recursive: true });
   for (const asset of rel.assets || []) {
     if (!/\.(mp4|jpg|zip|json)$/i.test(asset.name)) continue;
     const file = path.join(OUT, asset.name);
-    process.stdout.write(`download ${asset.name} … `);
+    process.stdout.write(`download ${asset.name} â€¦ `);
     const res = await fetch(asset.url, { headers: { ...headers, accept: 'application/octet-stream' } });
     if (!res.ok) { console.log(`failed ${res.status}`); continue; }
     const buf = Buffer.from(await res.arrayBuffer());
@@ -114,3 +116,4 @@ try {
   console.error(`cloud-run failed: ${err.message}`);
   process.exit(1);
 }
+
