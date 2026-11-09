@@ -186,6 +186,31 @@ async function pexelsSearch(query) {
 
 const memory = new Map(); // topic -> asset | null (failed topics are not retried forever)
 
+// Host -> timestamp when it failed. Module scope, not per-call: one dead host
+// must be skipped for the rest of the run, otherwise every single topic pays
+// its full timeout again (that is what made CI runs look hung).
+const health = new Map();
+const providerStats = new Map(); // host -> { ok, fail, msg }
+function stat(name) {
+  let s = providerStats.get(name);
+  if (!s) { s = { ok: 0, fail: 0, msg: '' }; providerStats.set(name, s); }
+  return s;
+}
+const benched = (name) => (health.get(name) || 0) > Date.now();
+function bench(name, msg) {
+  health.set(name, Date.now() + 10 * 60_000);
+  const s = stat(name);
+  s.fail++;
+  if (msg) s.msg = String(msg).slice(0, 70);
+}
+
+/** One line per provider for the run log: what worked, what timed out. */
+export function brollHealth() {
+  return [...providerStats.entries()]
+    .map(([name, s]) => ({ provider: name, ok: s.ok, fail: s.fail, msg: s.msg }))
+    .sort((a, b) => b.ok + b.fail - (a.ok + a.fail));
+}
+
 /**
  * Resolve one topic into a cached playable asset, or null when every source
  * fails. `seed` varies the offset for repeated topics instead of re-downloading.
@@ -205,9 +230,6 @@ export async function findAsset(topic, { onLog } = {}) {
   // Source order: keyed premium first, then the keyless hosts that are
   // actually reachable here. A host that fails is benched for 10 minutes so a
   // dead endpoint does not add a timeout to every single topic.
-  const health = new Map(); // host -> ts when it failed
-  const benched = (name) => (health.get(name) || 0) > Date.now();
-  const bench = (name) => health.set(name, Date.now() + 10 * 60_000);
   const sources = [];
   if (PEXELS_API_KEY) sources.push(['pexels', pexelsSearch]);
   sources.push(['coverr', coverrSearch]);
@@ -219,8 +241,9 @@ export async function findAsset(topic, { onLog } = {}) {
     let cands = [];
     try {
       cands = await search(q);
+      stat(name).ok++;
     } catch (err) {
-      bench(name);
+      bench(name, err.message);
       onLog?.(`b-roll search ${name}: ${String(err.message || err).slice(0, 70)}`);
       continue;
     }
@@ -251,6 +274,7 @@ export async function findAsset(topic, { onLog } = {}) {
         memory.set(q, { ...asset, offset: pickOffset(asset) });
         return memory.get(q);
       } catch (err) {
+        stat(cand.provider).fail++;
         onLog?.(`b-roll ${cand.provider}: ${String(err.message || err).slice(0, 70)}`);
         try { fs.unlinkSync(file); } catch {}
       }
@@ -278,7 +302,7 @@ export function brollCredits() {
 }
 
 /** Exported for tests that want a clean slate. */
-export function _resetMemory() { memory.clear(); }
+export function _resetMemory() { memory.clear(); health.clear(); providerStats.clear(); }
 
 /**
  * Mine + fetch for one clip. Returns SOURCE-ABSOLUTE windows (the render maps

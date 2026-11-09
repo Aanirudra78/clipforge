@@ -26,7 +26,7 @@ const args = Object.fromEntries(
 
 const URL_IN = String(args.url || '').trim();
 const OUT = path.resolve(args.out || 'source.mp4');
-const TOKEN = args.token || process.env.GITHUB_TOKEN || '';
+const TOKEN = args.token || process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
 if (!URL_IN) {
   console.error('missing --url');
   process.exit(2);

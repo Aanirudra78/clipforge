@@ -141,7 +141,9 @@
     <div id="paneLink" class="hidden">
       <label for="link">Direct video link</label>
       <input id="link" type="url" placeholder="https://.../video.mp4" autocapitalize="off" spellcheck="false">
-      <div class="note">tmpfiles page link bhi chalega. GitHub release asset link ho to wahi paste karo.</div>
+      <label for="sourceTag">Release tag (optional)</label>
+      <input id="sourceTag" type="text" placeholder="source-1794200000" autocapitalize="off" spellcheck="false">
+      <div class="note">tmpfiles page link bhi chalega. Link GitHub release se ho to tag do — render ke baad source delete ho jayega.</div>
     </div>
   </section>
 
@@ -439,6 +441,8 @@
       music: $('music').value,
       title: $('title').value.trim(),
       broll: $('broll').value,
+      // Only a link-based source can have a release tag (PC upload path).
+      source_release_tag: $('tabLink').classList.contains('on') ? $('sourceTag').value.trim() : '',
     };
   }
 
@@ -512,7 +516,9 @@
     if (r.status !== 'completed') {
       setBusy(true, r.status === 'queued' ? 'Queue me hai…' : 'Render chal raha hai…');
       startTicker();
-      setTimeout(pollRun, 6000);
+      // Long renders: stop hammering the API (and the battery) every 6 s.
+      const elapsed = Date.now() - new Date(r.created_at).getTime();
+      setTimeout(pollRun, elapsed < 120000 ? 6000 : 20000);
       return;
     }
     stopTicker();

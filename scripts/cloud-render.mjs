@@ -23,7 +23,7 @@ import { curate } from '../server/curate.js';
 import { renderClip, framePlan } from '../server/render.js';
 import { planCuts } from '../server/cuts.js';
 import { BROLL } from '../server/config.js';
-import { planBroll } from '../server/broll/index.js';
+import { planBroll, brollHealth } from '../server/broll/index.js';
 import { resolveMusic } from '../server/music/index.js';
 import { lookMusic } from '../server/looks/index.js';
 
@@ -260,6 +260,14 @@ try {
     clips: made,
   };
   fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 1));
+  // Provider health in one line, even in quiet mode: a CI run that spends its
+  // time on dead hosts should say so (no transcript text, safe to publish).
+  const bh = brollHealth();
+  if (bh.length) {
+    const ok = bh.filter((h) => h.ok).map((h) => `${h.provider}:${h.ok}`);
+    const bad = bh.filter((h) => h.fail).map((h) => `${h.provider}:${h.fail}${h.msg ? ` (${h.msg})` : ''}`);
+    log(`b-roll sources${ok.length ? ` · ok ${ok.join(' ')}` : ''}${bad.length ? ` · failed ${bad.join(' · ')}` : ''}`);
+  }
   step('done');
   log(`${made.length} clips in ${manifest.stats.seconds}s`);
   saveLog();

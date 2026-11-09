@@ -120,7 +120,7 @@ jobs:
           # Re-running the same job keeps the run number: clear a stale tag first.
           gh release delete "$TAG" --yes --cleanup-tag >/dev/null 2>&1 || true
           gh release create "$TAG" \
-            out/clips.zip out/manifest.json out/clip-*.jpg \
+            out/clip-*.mp4 out/clip-*.jpg out/manifest.json out/clips.zip \
             --title "Clips · run ${{ github.run_number }}" \
             --notes-file release-body.md
           {
