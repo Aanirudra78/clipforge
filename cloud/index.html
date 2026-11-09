@@ -552,7 +552,9 @@
       if (!rel) await sleep(3000);
     }
     if (!rel) {
-      $('resultBody').innerHTML = `<p class="note bad">Release nahi mili. Actions log dekho — render fail hua ho sakta hai.</p>`;
+      saveRun(null);
+      show('resultCard', false);
+      note('goNote', 'Release nahi mili (delete ho gayi hogi ya render fail hua). Actions log dekho.', 'note warn');
       return;
     }
     state.release = rel;

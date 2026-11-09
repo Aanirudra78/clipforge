@@ -85,11 +85,21 @@ Writes `out/clip-NN.mp4`, `out/clip-NN.jpg`, `out/manifest.json`, `out/log.txt`.
 are there for quick drafts. `CF_QUIET=1` keeps transcript-derived text out of
 the logs (the workflow sets it, because the repo is public).
 
+To test the whole cloud round-trip from the PC (dispatch → poll → download →
+delete), without touching the phone:
+
+```powershell
+$env:GITHUB_TOKEN = 'github_pat_...'
+node scripts/cloud-run.mjs --repo <you>/clipforge --url "https://.../video.mp4" --out downloads
+```
+
 ## Limits and gotchas
 
 - **Public repo** → unlimited Actions minutes, but the workflow file, logs and
   releases are public until deleted. `CF_QUIET=1` keeps speech phrases out of
-  the log; the release body still carries short hooks.
+  the log; the release body still carries short hooks. The `source_url` you
+  dispatch is visible in the run's event payload while it is alive (≤ 24 h on
+  tmpfiles).
 - **Private repo** → 2000 minutes/month. CPU rendering a 40-min podcast can
   burn 100+ minutes, and release previews need auth, so public is the free path.
 - **tmpfiles.org**: 100 MB max, 24 h retention, download link is scraped from
