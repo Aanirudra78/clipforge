@@ -1,0 +1,17 @@
+node_modules/
+.env
+*.log
+
+# Everything the app generates stays local. The only exception is the CC0 music
+# bed: the phone-triggered cloud render needs it in the repo, otherwise every
+# run would have to re-download it from openfilm.dev.
+data/*
+!data/music/
+!data/music/*.mp3
+data/music/uploads/
+data/music/*.part
+
+# Cloud render scratch files
+out/
+source.mp4
+*.zip

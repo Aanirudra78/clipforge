@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0c10">
+<title>ClipForge Cloud</title>
+<style>
+  :root {
+    --bg: #0b0c10;
+    --panel: #14161d;
+    --panel-2: #1b1e27;
+    --line: #262a36;
+    --text: #eef1f7;
+    --muted: #9aa3b5;
+    --accent: #ffd400;
+    --ok: #48d597;
+    --warn: #ffb020;
+    --bad: #ff5c5c;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 18px 14px calc(28px + env(safe-area-inset-bottom));
+    max-width: 620px; margin: 0 auto;
+  }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13px; margin: 4px 0 18px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 15px; margin-bottom: 12px;
+  }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 5px; }
+  label:first-child { margin-top: 0; }
+  input[type=text], input[type=password], input[type=url], select, textarea {
+    width: 100%; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 11px; padding: 12px;
+    font: inherit; font-size: 15px; outline: none;
+  }
+  input:focus, select:focus { border-color: #3a4152; }
+  textarea { resize: vertical; min-height: 66px; }
+  .row { display: flex; gap: 9px; }
+  .row > * { flex: 1; }
+  button {
+    font: inherit; font-weight: 650; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); padding: 12px 14px; cursor: pointer;
+  }
+  button:active { transform: scale(.985); }
+  button[disabled] { opacity: .45; pointer-events: none; }
+  button.primary { background: var(--accent); color: #16130a; border-color: var(--accent); }
+  button.ghost { background: transparent; }
+  button.danger { background: transparent; color: var(--bad); border-color: #4a2626; }
+  button.wide { width: 100%; padding: 15px; font-size: 16px; }
+  .btn-row { display: flex; gap: 9px; margin-top: 12px; flex-wrap: wrap; }
+  .btn-row > button { flex: 1; min-width: 130px; }
+  .note { color: var(--muted); font-size: 12.5px; margin-top: 9px; }
+  .note.warn { color: var(--warn); }
+  .note.bad { color: var(--bad); }
+  .note.ok { color: var(--ok); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.warn { background: var(--warn); }
+  .tabs { display: flex; background: var(--panel-2); border-radius: 12px; padding: 4px; gap: 4px; margin-bottom: 12px; }
+  .tabs button { flex: 1; background: transparent; border: 0; padding: 9px; color: var(--muted); font-weight: 600; }
+  .tabs button.on { background: #2a2f3d; color: var(--text); }
+  .drop {
+    border: 1.5px dashed #333a4a; border-radius: 12px; padding: 22px 14px; text-align: center;
+    color: var(--muted); font-size: 14px;
+  }
+  .drop b { color: var(--text); display: block; margin-bottom: 3px; }
+  .bar { height: 8px; background: #232734; border-radius: 999px; overflow: hidden; margin-top: 12px; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .stat { background: var(--panel-2); border-radius: 11px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 18px; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  .clip { border-top: 1px solid var(--line); padding: 14px 0 4px; }
+  .clip:first-of-type { border-top: 0; padding-top: 0; }
+  .clip-head { display: flex; gap: 12px; align-items: flex-start; }
+  .clip-head img { width: 72px; aspect-ratio: 9/16; object-fit: cover; border-radius: 9px; background: #000; }
+  .clip-meta { flex: 1; min-width: 0; }
+  .clip-meta b { font-size: 14px; }
+  .clip-meta p { margin: 3px 0 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .clip video { width: 100%; border-radius: 12px; margin-top: 10px; background: #000; }
+  .clip .btn-row button { padding: 10px; font-size: 14px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; outline: none; }
+  details[open] summary { margin-bottom: 10px; }
+  .log { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
+  a { color: var(--accent); }
+  .hidden { display: none !important; }
+  .banner { border-radius: 12px; padding: 11px 13px; font-size: 13px; margin-bottom: 12px; }
+  .banner.bad { background: #2a1618; color: #ffb4b4; border: 1px solid #4a2626; }
+  .banner.warn { background: #2a2413; color: #ffe0a3; border: 1px solid #4a3f1c; }
+  .banner.ok { background: #12261f; color: #b3f0d5; border: 1px solid #1f4436; }
+  .spin { width: 14px; height: 14px; border: 2px solid #4a4f5e; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; display: inline-block; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { color: #6c7385; font-size: 11.5px; text-align: center; margin-top: 20px; }
+</style>
+</head>
+<body>
+  <h1>ClipForge <span>Cloud</span></h1>
+  <p class="sub">Phone se video bhejo, GitHub par render, clips wapas. PC off ho to bhi chalta hai.</p>
+
+  <div id="banner"></div>
+
+  <section class="card" id="setupCard">
+    <h2>1 · GitHub setup</h2>
+    <label for="repo">Repository (owner/name)</label>
+    <input id="repo" type="text" placeholder="yourname/clipforge" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label for="token">Fine-grained token (Actions + Contents: read &amp; write)</label>
+    <input id="token" type="password" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
+    <div class="btn-row">
+      <button id="saveCfg">Save</button>
+      <button id="testCfg" class="ghost">Test connection</button>
+      <button id="forgetCfg" class="ghost">Forget</button>
+    </div>
+    <div id="cfgNote" class="note">Token sirf is phone ke browser me rehta hai. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Token banao ↗</a></div>
+  </section>
+
+  <section class="card" id="sourceCard">
+    <h2>2 · Video</h2>
+    <div class="tabs">
+      <button id="tabUpload" class="on">Phone se upload</button>
+      <button id="tabLink">Link paste karo</button>
+    </div>
+
+    <div id="paneUpload">
+      <label class="drop" for="file">
+        <b>Video chuno</b>
+        <span id="fileHint">mp4 / mov · max 100 MB</span>
+      </label>
+      <input id="file" type="file" accept="video/*" class="hidden">
+      <div class="bar hidden" id="upBar"><i></i></div>
+      <div id="upNote" class="note">Upload tmpfiles.org par jaata hai aur 24 ghante me apne aap delete ho jaata hai. Screen band mat karo jab tak upload khatam na ho.</div>
+    </div>
+
+    <div id="paneLink" class="hidden">
+      <label for="link">Direct video link</label>
+      <input id="link" type="url" placeholder="https://.../video.mp4" autocapitalize="off" spellcheck="false">
+      <div class="note">tmpfiles page link bhi chalega. GitHub release asset link ho to wahi paste karo.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3 · Style</h2>
+    <div class="row">
+      <div>
+        <label for="count">Clips</label>
+        <select id="count">
+          <option>2</option><option>3</option><option selected>4</option>
+          <option>5</option><option>6</option><option>8</option>
+        </select>
+      </div>
+      <div>
+        <label for="template">Captions</label>
+        <select id="template">
+          <option value="pop" selected>Bold Pop</option>
+          <option value="karaoke">Karaoke Clean</option>
+          <option value="box">Minimal Box</option>
+          <option value="neon">Neon Punch</option>
+        </select>
+      </div>
+    </div>
+    <label for="look">Colour look</label>
+    <select id="look">
+      <option value="none" selected>None (untouched)</option>
+      <option value="studio-clean">Studio Clean</option>
+      <option value="hormozi-pop">Hormozi Pop</option>
+      <option value="teal-orange">Teal &amp; Orange</option>
+      <option value="golden-hour">Golden Hour</option>
+      <option value="dark-moody">Dark Moody</option>
+      <option value="film-noir">Film Noir</option>
+      <option value="vintage-16mm">Vintage 16mm</option>
+      <option value="vhs">VHS Tape</option>
+      <option value="luxury">Black &amp; Gold</option>
+      <option value="cyberpunk">Cyberpunk</option>
+    </select>
+    <div class="row">
+      <div>
+        <label for="music">Music</label>
+        <select id="music">
+          <option value="auto" selected>Auto (CC0 bed)</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+      <div>
+        <label for="broll">B-roll</label>
+        <select id="broll">
+          <option value="on" selected>On (2–4 inserts)</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+    </div>
+    <label for="title">Title / hook (optional)</label>
+    <input id="title" type="text" placeholder="e.g. Bill Gates on money" autocomplete="off">
+  </section>
+
+  <button id="go" class="primary wide">Render shuru karo</button>
+  <div id="goNote" class="note"></div>
+
+  <section class="card hidden" id="runCard">
+    <h2 id="runTitle">Render</h2>
+    <div class="stats">
+      <div class="stat"><b id="runState">—</b><span>status</span></div>
+      <div class="stat"><b id="runTime">0:00</b><span>elapsed</span></div>
+    </div>
+    <div id="runBody"></div>
+    <div class="btn-row">
+      <button id="openRun" class="ghost">Actions log ↗</button>
+      <button id="forgetRun" class="ghost">Clear</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="resultCard">
+    <h2>Clips</h2>
+    <div id="resultBody"></div>
+    <div class="btn-row">
+      <button id="zipBtn" class="primary">ZIP download</button>
+      <button id="deleteBtn" class="danger">GitHub se delete</button>
+    </div>
+    <div id="deleteNote" class="note">Download ke baad delete kar dena — release public hoti hai.</div>
+  </section>
+
+  <footer>Static page · GitHub Pages. Koi paid server nahi.</footer>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const fmtBytes = (n) => n > 1e9 ? `${(n / 1e9).toFixed(2)} GB` : n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.round(n / 1e3)} kB`;
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  const store = {
+    get(k, d) { try { const v = JSON.parse(localStorage.getItem(`cf:${k}`)); return v == null ? d : v; } catch { return d; } },
+    set(k, v) { try { v == null ? localStorage.removeItem(`cf:${k}`) : localStorage.setItem(`cf:${k}`, JSON.stringify(v)); } catch {} },
+  };
+
+  const state = {
+    repo: '',
+    token: '',
+    sourceUrl: '',
+    fileName: '',
+    fileSize: 0,
+    uploading: false,
+    run: store.get('run', null),
+    release: null,
+    ticker: 0,
+  };
+
+  let wakeLock = null;
+
+  // ---------- tiny ui helpers ----------
+  function banner(html, kind = 'bad') {
+    const el = $('banner');
+    if (!html) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="banner ${kind}">${html}</div>`;
+  }
+  function note(id, html, kind = 'note') {
+    const el = $(id);
+    if (!el) return;
+    el.className = kind;
+    el.innerHTML = html;
+  }
+  function show(id, on = true) { $(id).classList.toggle('hidden', !on); }
+  function setBusy(on, label) {
+    $('go').disabled = on;
+    $('go').innerHTML = on ? `<span class="spin"></span> ${label || 'Chal raha hai…'}` : 'Render shuru karo';
+  }
+
+  // ---------- config ----------
+  function guessRepo() {
+    const m = /^([^.]+)\.github\.io$/i.exec(location.hostname);
+    if (!m) return '';
+    const seg = location.pathname.split('/').filter(Boolean)[0] || '';
+    return seg ? `${m[1]}/${seg}` : `${m[1]}/${m[1]}.github.io`;
+  }
+
+  function loadCfg() {
+    state.repo = store.get('repo', '') || guessRepo();
+    state.token = store.get('token', '');
+    $('repo').value = state.repo;
+    $('token').value = state.token;
+  }
+
+  function saveCfg() {
+    state.repo = $('repo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
+    state.token = $('token').value.trim();
+    store.set('repo', state.repo);
+    store.set('token', state.token);
+    note('cfgNote', state.repo ? `Saved. Repo: <code>${escapeHtml(state.repo)}</code>` : 'Repo bharo.', state.repo ? 'note ok' : 'note bad');
+  }
+
+  function ready() {
+    if (!state.repo || !/^[\w.-]+\/[\w.-]+$/.test(state.repo)) throw new Error('Repo owner/name format me likho (Settings me).');
+    if (!state.token) throw new Error('Token daalo (Settings me).');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ---------- github api ----------
+  async function api(path, { method = 'GET', body } = {}) {
+    const res = await fetch(`https://api.github.com${path}`, {
+      method,
+      headers: {
+        authorization: `Bearer ${state.token}`,
+        accept: 'application/vnd.github+json',
+        'x-github-api-version': '2022-11-28',
+        ...(body ? { 'content-type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    let data = null;
+    if (text) { try { data = JSON.parse(text); } catch { data = { message: text.slice(0, 400) }; } }
+    if (!res.ok) {
+      const err = new Error(data?.message || res.statusText || `HTTP ${res.status}`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  }
+
+  function apiError(err) {
+    if (err.status === 401) return 'Token galat ya expire ho gaya. Naya fine-grained token banao.';
+    if (err.status === 403) return `Permission nahi mila (${escapeHtml(err.message)}). Token me Actions: write + Contents: read/write hona chahiye.`;
+    if (err.status === 404) return 'Repo ya cheez nahi mili. Repo naam aur token repo access check karo.';
+    if (err.status === 422) return `GitHub ne reject kiya: ${escapeHtml(err.message)}`;
+    return escapeHtml(err.message || String(err));
+  }
+
+  async function testConnection() {
+    try {
+      saveCfg();
+      ready();
+      note('cfgNote', 'Check kar raha hoon…', 'note');
+      const repo = await api(`/repos/${state.repo}`);
+      const perms = repo.permissions || {};
+      const can = [];
+      if (perms.push || perms.admin) can.push('contents write');
+      if (repo.private) {
+        banner(`<b>${escapeHtml(repo.full_name)}</b> private hai. Free Actions 2000 min/mahina hi milenge aur clips direct preview nahi honge. Public repo recommended.`, 'warn');
+      } else {
+        banner('');
+      }
+      note('cfgNote', `✅ <b>${escapeHtml(repo.full_name)}</b> mil gaya · default branch <code>${escapeHtml(repo.default_branch)}</code>${can.length ? '' : ' · ⚠️ contents write permission nahi dikh raha'}`, 'note ok');
+      state.branch = repo.default_branch;
+      store.set('branch', repo.default_branch);
+    } catch (err) {
+      banner(apiError(err), 'bad');
+      note('cfgNote', 'Connection fail.', 'note bad');
+    }
+  }
+
+  // ---------- upload ----------
+  function uploadFile(file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const fd = new FormData();
+      fd.append('file', file, file.name || 'source.mp4');
+      xhr.open('POST', 'https://tmpfiles.org/api/v1/upload?expire=86400');
+      xhr.timeout = 45 * 60 * 1000;
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total, e.loaded); };
+      xhr.onload = () => {
+        let j = null;
+        try { j = JSON.parse(xhr.responseText); } catch {}
+        if (xhr.status >= 200 && xhr.status < 300 && j && j.status === 'success' && j.data && j.data.url) {
+          resolve(j.data.url);
+        } else {
+          reject(new Error(`upload ${xhr.status}: ${String(xhr.responseText || '').slice(0, 140)}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('network error — internet check karo'));
+      xhr.ontimeout = () => reject(new Error('upload timeout — dobara try karo'));
+      xhr.send(fd);
+    });
+  }
+
+  async function pickFile() {
+    const file = $('file').files[0];
+    if (!file) return;
+    state.fileName = file.name;
+    state.fileSize = file.size;
+    state.sourceUrl = '';
+    note('fileHint', `${escapeHtml(file.name)} · ${fmtBytes(file.size)}`, 'note');
+    $('upBar').classList.add('hidden');
+    if (file.size > 100 * 1024 * 1024) {
+      note('upNote', 'Ye file 100 MB se badi hai — tmpfiles par upload nahi hoga. "Link paste karo" tab se direct URL do.', 'note bad');
+      return;
+    }
+    await startUpload(file);
+  }
+
+  async function startUpload(file) {
+    if (state.uploading) return;
+    state.uploading = true;
+    $('go').disabled = true;
+    $('upBar').classList.remove('hidden');
+    const bar = $('upBar').firstElementChild;
+    const t0 = Date.now();
+    try {
+      if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
+      note('upNote', 'Upload ho raha hai… 0%', 'note');
+      const url = await uploadFile(file, (frac, loaded) => {
+        bar.style.width = `${Math.round(frac * 100)}%`;
+        const secs = (Date.now() - t0) / 1000;
+        const speed = secs > 1 ? loaded / secs : 0;
+        const left = speed > 0 ? (file.size - loaded) / speed : 0;
+        note('upNote', `Upload ${Math.round(frac * 100)}% · ${fmtBytes(loaded)}/${fmtBytes(file.size)}${left > 1 ? ` · ~${fmtTime(left)} bacha` : ''}`, 'note');
+      });
+      state.sourceUrl = url;
+      bar.style.width = '100%';
+      note('upNote', `✅ Upload ho gaya. Render dabao. (Link 24 ghante tak zinda)`, 'note ok');
+    } catch (err) {
+      bar.style.width = '0';
+      note('upNote', `Upload fail: ${escapeHtml(err.message)}. Link tab try karo ya dobara bhejo.`, 'note bad');
+    } finally {
+      state.uploading = false;
+      $('go').disabled = false;
+      if (wakeLock) { try { await wakeLock.release(); } catch {} wakeLock = null; }
+    }
+  }
+
+  // ---------- dispatch / poll ----------
+  function inputs() {
+    return {
+      source_url: state.sourceUrl,
+      count: $('count').value,
+      template: $('template').value,
+      look: $('look').value,
+      music: $('music').value,
+      title: $('title').value.trim(),
+      broll: $('broll').value,
+    };
+  }
+
+  async function busyRun() {
+    const runs = await api(`/repos/${state.repo}/actions/runs?per_page=20`);
+    return (runs.workflow_runs || []).find(
+      (r) => /render\.yml$/.test(r.path || '') && r.status !== 'completed',
+    );
+  }
+
+  async function dispatch() {
+    // Remember the newest run so a stale run from earlier cannot be mistaken
+    // for ours (device clocks lie; run numbers do not).
+    const before = await api(`/repos/${state.repo}/actions/runs?per_page=5`);
+    const maxBefore = Math.max(0, ...(before.workflow_runs || []).map((r) => r.run_number));
+
+    await api(`/repos/${state.repo}/actions/workflows/render.yml/dispatches`, {
+      method: 'POST',
+      body: { ref: store.get('branch', '') || 'main', inputs: inputs() },
+    });
+
+    for (let i = 0; i < 24; i++) {
+      await sleep(2500);
+      const runs = await api(`/repos/${state.repo}/actions/runs?event=workflow_dispatch&per_page=10`);
+      const hit = (runs.workflow_runs || []).find(
+        (r) => /render\.yml$/.test(r.path || '') && r.run_number > maxBefore,
+      );
+      if (hit) return hit;
+    }
+    throw new Error('dispatch chala par run nahi mila — Actions tab dekho.');
+  }
+
+  function saveRun(run) {
+    state.run = run ? {
+      id: run.id, number: run.run_number, status: run.status,
+      conclusion: run.conclusion, created: run.created_at, repo: state.repo,
+    } : null;
+    store.set('run', state.run);
+  }
+
+  function startTicker() {
+    stopTicker();
+    state.ticker = setInterval(() => {
+      if (!state.run) return;
+      $('runTime').textContent = fmtTime((Date.now() - new Date(state.run.created).getTime()) / 1000);
+    }, 1000);
+  }
+  function stopTicker() { if (state.ticker) clearInterval(state.ticker); state.ticker = 0; }
+
+  function runStateLabel(r) {
+    if (!r) return '—';
+    if (r.status === 'completed') {
+      return { success: 'done', failure: 'failed', cancelled: 'cancelled', skipped: 'skipped' }[r.conclusion] || r.conclusion || 'done';
+    }
+    return { queued: 'queue', in_progress: 'rendering', waiting: 'waiting', requested: 'starting', pending: 'pending' }[r.status] || r.status;
+  }
+
+  async function pollRun() {
+    if (!state.run) return;
+    let r;
+    try {
+      r = await api(`/repos/${state.run.repo || state.repo}/actions/runs/${state.run.id}`);
+    } catch (err) {
+      // Phone networks drop; keep the lock but keep trying.
+      note('goNote', `Status nahi mila (${apiError(err)}). Dobara try kar raha hoon…`, 'note warn');
+      setTimeout(pollRun, 12000);
+      return;
+    }
+    saveRun(r);
+    renderRun(r);
+    if (r.status !== 'completed') {
+      setBusy(true, r.status === 'queued' ? 'Queue me hai…' : 'Render chal raha hai…');
+      startTicker();
+      setTimeout(pollRun, 6000);
+      return;
+    }
+    stopTicker();
+    setBusy(false);
+    if (r.conclusion === 'success') {
+      note('goNote', '', 'note');
+      await loadResult(r).catch((err) => banner(apiError(err), 'bad'));
+    } else {
+      note('goNote', `Run ${r.conclusion}. <a href="${r.html_url}" target="_blank" rel="noopener">Log kholo ↗</a> — Groq key, source link ya permissions me dikkat ho sakti hai.`, 'note bad');
+      show('resultCard', false);
+    }
+  }
+
+  function renderRun(r) {
+    show('runCard', true);
+    $('runTitle').textContent = `Render #${r.run_number}`;
+    $('runState').textContent = runStateLabel(r);
+    const busy = r.status !== 'completed';
+    $('runBody').innerHTML = `
+      <div class="pill" style="margin-top:12px">
+        <span class="dot ${r.status === 'completed' ? (r.conclusion === 'success' ? 'ok' : 'bad') : 'warn'}"></span>
+        ${busy ? 'GitHub par chal raha hai — is page ko band kar sakte ho, wapas aake dekho.' : `Khatam: ${escapeHtml(r.conclusion || '')}`}
+      </div>`;
+    $('openRun').onclick = () => window.open(r.html_url, '_blank', 'noopener');
+  }
+
+  // ---------- results ----------
+  async function loadResult(run) {
+    show('resultCard', true);
+    $('resultBody').innerHTML = `<p class="note"><span class="spin"></span> clips dhoond raha hoon…</p>`;
+    let rel = null;
+    for (let i = 0; i < 6 && !rel; i++) {
+      rel = await api(`/repos/${state.repo}/releases/tags/render-${run.run_number}`).catch((e) => {
+        if (e.status === 404) return null;
+        throw e;
+      });
+      if (!rel) await sleep(3000);
+    }
+    if (!rel) {
+      $('resultBody').innerHTML = `<p class="note bad">Release nahi mili. Actions log dekho — render fail hua ho sakta hai.</p>`;
+      return;
+    }
+    state.release = rel;
+    const assets = rel.assets || [];
+    const find = (name) => assets.find((a) => a.name === name);
+    const thumbs = assets.filter((a) => a.name.endsWith('.jpg'));
+    const zips = assets.filter((a) => a.name.endsWith('.zip'));
+
+    let meta = null;
+    const start = (rel.body || '').indexOf('<!--CF:');
+    if (start >= 0) {
+      const end = rel.body.indexOf('-->', start);
+      try { meta = JSON.parse(rel.body.slice(start + 7, end)); } catch {}
+    }
+    const byFile = new Map(((meta && meta.clips) || []).map((c) => [c.file, c]));
+
+    const rows = assets
+      .filter((a) => /\.mp4$/i.test(a.name))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((a, i) => {
+        const m = byFile.get(a.name) || {};
+        const thumbName = a.name.replace(/\.mp4$/i, '.jpg');
+        const thumb = find(thumbName) || thumbs[i];
+        return `
+          <div class="clip">
+            <div class="clip-head">
+              ${thumb ? `<img src="${thumb.browser_download_url}" alt="" loading="lazy">` : '<img alt="">'}
+              <div class="clip-meta">
+                <b>${escapeHtml(a.name)}</b>
+                <p>${m.duration ? `${m.duration}s` : ''}${m.visuals ? ` · ${m.visuals} visual${m.visuals === 1 ? '' : 's'}` : ''}${m.hook ? ` · ${escapeHtml(m.hook)}` : ''}</p>
+                <p>${fmtBytes(a.size)}</p>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button data-preview="${i}">Preview</button>
+              <button class="primary" data-dl="${escapeHtml(a.browser_download_url)}">Download</button>
+            </div>
+            <video class="hidden" data-video="${i}" controls playsinline preload="none" src="${a.browser_download_url}"></video>
+          </div>`;
+      })
+      .join('');
+
+    $('resultBody').innerHTML = `
+      <p class="note ok">${assets.filter((a) => /\.mp4$/i.test(a.name)).length} clip ready${meta?.title ? ` · ${escapeHtml(meta.title)}` : ''}.</p>
+      ${rows || '<p class="note bad">Koi mp4 asset nahi mila.</p>'}`;
+
+    $('resultBody').querySelectorAll('[data-preview]').forEach((btn) => {
+      btn.onclick = () => {
+        const v = $('resultBody').querySelector(`[data-video="${btn.dataset.preview}"]`);
+        v.classList.toggle('hidden');
+        if (!v.classList.contains('hidden')) v.play().catch(() => {});
+      };
+    });
+    $('resultBody').querySelectorAll('[data-dl]').forEach((btn) => {
+      btn.onclick = () => {
+        window.open(btn.dataset.dl, '_blank', 'noopener');
+        note('deleteNote', 'Download shuru. Sab save hone ke baad "GitHub se delete" dabao.', 'note warn');
+      };
+    });
+
+    const zip = zips[0];
+    $('zipBtn').onclick = () => {
+      if (!zip) return note('deleteNote', 'ZIP asset nahi mila — clips alag alag download karo.', 'note bad');
+      window.open(zip.browser_download_url, '_blank', 'noopener');
+      note('deleteNote', 'Download shuru. Sab save hone ke baad "GitHub se delete" dabao.', 'note warn');
+    };
+    $('zipBtn').classList.toggle('hidden', !zip);
+
+    $('deleteBtn').onclick = () => deleteRelease(rel);
+    note('deleteNote', 'Download ke baad delete kar dena — release public hoti hai.', 'note');
+  }
+
+  async function deleteRelease(rel) {
+    if (!confirm(`Release ${rel.tag_name} aur uske saare clips GitHub se delete kar dun?`)) return;
+    $('deleteBtn').disabled = true;
+    try {
+      await api(`/repos/${state.repo}/releases/${rel.id}`, { method: 'DELETE' });
+      await api(`/repos/${state.repo}/git/refs/tags/${encodeURIComponent(rel.tag_name)}`, { method: 'DELETE' }).catch(() => {});
+      state.release = null;
+      saveRun(null);
+      show('resultCard', false);
+      banner(`✅ ${escapeHtml(rel.tag_name)} delete ho gayi.`, 'ok');
+      note('goNote', '');
+    } catch (err) {
+      banner(apiError(err), 'bad');
+    } finally {
+      $('deleteBtn').disabled = false;
+    }
+  }
+
+  // ---------- main action ----------
+  async function start() {
+    banner('');
+    try {
+      saveCfg();
+      ready();
+      if (!state.sourceUrl) {
+        if ($('paneLink').classList.contains('hidden')) throw new Error('Pehle video upload karo ya link paste karo.');
+        state.sourceUrl = $('link').value.trim();
+        if (!/^https?:\/\//.test(state.sourceUrl)) throw new Error('Link https:// se shuru hona chahiye.');
+      }
+      if (!store.get('branch', '')) await testConnection();
+      if (!store.get('branch', '')) throw new Error('Default branch nahi mila — Test connection dabao.');
+
+      setBusy(true, 'Dispatch…');
+      note('goNote', 'Purane render check kar raha hoon…');
+      const busy = await busyRun();
+      if (busy) throw new Error(`Ek render pehle se chal raha hai (#${busy.run_number}). Uske khatam hone ka wait karo.`);
+
+      note('goNote', 'GitHub par bhej raha hoon…');
+      const run = await dispatch();
+      saveRun(run);
+      show('resultCard', false);
+      renderRun(run);
+      note('goNote', 'Chal gaya. Page band kar sakte ho — wapas aake status dekhna.');
+      pollRun();
+    } catch (err) {
+      setBusy(false);
+      banner(apiError(err), 'bad');
+      note('goNote', '');
+    }
+  }
+
+  // ---------- wiring ----------
+  loadCfg();
+  if (!state.repo) show('setupCard', true);
+
+  $('saveCfg').onclick = () => { try { saveCfg(); } catch (e) { banner(escapeHtml(e.message), 'bad'); } };
+  $('testCfg').onclick = testConnection;
+  $('forgetCfg').onclick = () => {
+    if (!confirm('Repo aur token is phone se hata dun?')) return;
+    store.set('repo', null); store.set('token', null); store.set('branch', null);
+    state.repo = ''; state.token = '';
+    $('repo').value = guessRepo(); $('token').value = '';
+    note('cfgNote', 'Hata diya.', 'note');
+  };
+
+  $('tabUpload').onclick = () => {
+    $('tabUpload').classList.add('on'); $('tabLink').classList.remove('on');
+    show('paneUpload', true); show('paneLink', false);
+  };
+  $('tabLink').onclick = () => {
+    $('tabLink').classList.add('on'); $('tabUpload').classList.remove('on');
+    show('paneLink', true); show('paneUpload', false);
+  };
+  $('link').oninput = () => { state.sourceUrl = $('link').value.trim(); };
+
+  $('file').onchange = pickFile;
+
+  $('go').onclick = start;
+  $('forgetRun').onclick = () => {
+    stopTicker(); saveRun(null); show('runCard', false); show('resultCard', false); setBusy(false); banner('');
+  };
+
+  // Resume a run started before the page was closed.
+  if (state.run && state.run.id) {
+    api(`/repos/${state.run.repo || state.repo}/actions/runs/${state.run.id}`)
+      .then((r) => {
+        renderRun(r);
+        if (r.status !== 'completed') { setBusy(true, 'Pichla render chal raha hai…'); pollRun(); }
+        else if (r.conclusion === 'success') loadResult(r).catch((err) => banner(apiError(err), 'bad'));
+        else { renderRun(r); note('goNote', `Pichla run ${r.conclusion}.`, 'note bad'); }
+      })
+      .catch(() => {});
+  }
+
+  // Warn if the tab is hidden mid-upload (mobile browsers may freeze it).
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.uploading) note('upNote', 'Tab background me hai — upload ruk sakta hai. Wapas aao.', 'note warn');
+  });
+})();
+</script>
+</body>
+</html>

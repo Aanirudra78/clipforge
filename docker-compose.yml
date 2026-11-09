@@ -1,0 +1,15 @@
+services:
+  clipforge:
+    build: .
+    image: clipforge:latest
+    container_name: clipforge
+    restart: unless-stopped
+    ports:
+      - "4400:4400"
+    env_file:
+      - .env
+    environment:
+      PORT: 4400
+      HWACCEL: cpu
+    volumes:
+      - ./data:/app/data

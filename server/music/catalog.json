@@ -1,0 +1,937 @@
+{
+ "source": "https://openfilm.dev/library/",
+ "license": "CC0",
+ "version": 1,
+ "tracks": [
+  {
+   "id": "audio/music/warm-outro-pad-bloom-fc3137.mp3",
+   "name": "Warm outro pad bloom",
+   "group": "calm",
+   "energy": 1,
+   "bpm": 93,
+   "durationMs": 30041,
+   "tags": [
+    "calm",
+    "warm",
+    "ambient",
+    "synth",
+    "outro",
+    "background",
+    "meditation"
+   ]
+  },
+  {
+   "id": "audio/music/pre-dawn-piano-stillness-1a819b.mp3",
+   "name": "Pre-dawn piano stillness",
+   "group": "calm",
+   "energy": 2,
+   "bpm": 66,
+   "durationMs": 30041,
+   "tags": [
+    "calm",
+    "piano",
+    "morning",
+    "background"
+   ]
+  },
+  {
+   "id": "audio/music/guqin-and-bamboo-flute-7e75a9.mp3",
+   "name": "Guqin and bamboo flute",
+   "group": "calm",
+   "energy": 3,
+   "bpm": 115,
+   "durationMs": 30041,
+   "tags": [
+    "calm",
+    "chinese",
+    "woodwinds",
+    "morning",
+    "background"
+   ]
+  },
+  {
+   "id": "audio/music/hopeful-ambient-pads-348bc0.mp3",
+   "name": "Hopeful ambient pads",
+   "group": "calm",
+   "energy": 3,
+   "bpm": 80,
+   "durationMs": 64026,
+   "tags": [
+    "calm",
+    "uplifting",
+    "ambient",
+    "synth",
+    "background",
+    "ambience"
+   ]
+  },
+  {
+   "id": "audio/music/minimal-ambient-piano-ae1c16.mp3",
+   "name": "Minimal ambient piano",
+   "group": "calm",
+   "energy": 2,
+   "bpm": 70,
+   "durationMs": 45035,
+   "tags": [
+    "calm",
+    "ambient",
+    "minimal",
+    "piano",
+    "morning",
+    "background",
+    "ambience"
+   ]
+  },
+  {
+   "id": "audio/music/curious-documentary-pads-5a711d.mp3",
+   "name": "Curious documentary pads",
+   "group": "calm",
+   "energy": 2,
+   "bpm": 70,
+   "durationMs": 45035,
+   "tags": [
+    "calm",
+    "mysterious",
+    "wonder",
+    "ambient",
+    "synth",
+    "background",
+    "documentary"
+   ]
+  },
+  {
+   "id": "audio/music/cinematic-bloom-swell-7cb0bd.mp3",
+   "name": "Cinematic bloom swell",
+   "group": "cinematic",
+   "energy": 2,
+   "bpm": 50,
+   "durationMs": 30041,
+   "tags": [
+    "emotional",
+    "cinematic",
+    "riser"
+   ]
+  },
+  {
+   "id": "audio/music/guqin-meets-synth-5297aa.mp3",
+   "name": "Guqin meets synth",
+   "group": "cinematic",
+   "energy": 3,
+   "bpm": 93,
+   "durationMs": 30041,
+   "tags": [
+    "cinematic",
+    "chinese",
+    "synth"
+   ]
+  },
+  {
+   "id": "audio/music/baroque-triumphant-overture-a7d173.mp3",
+   "name": "Baroque triumphant overture",
+   "group": "cinematic",
+   "energy": 4,
+   "bpm": 93,
+   "durationMs": 30041,
+   "tags": [
+    "epic",
+    "cinematic",
+    "classical",
+    "intro",
+    "trailer"
+   ]
+  },
+  {
+   "id": "audio/music/building-strings-to-landing-9e57ca.mp3",
+   "name": "Building strings to landing",
+   "group": "cinematic",
+   "energy": 3,
+   "bpm": 90,
+   "durationMs": 30041,
+   "tags": [
+    "cinematic",
+    "strings",
+    "trailer",
+    "riser"
+   ]
+  },
+  {
+   "id": "audio/music/slow-burn-product-opener-3b34c2.mp3",
+   "name": "Slow-burn product opener",
+   "group": "cinematic",
+   "energy": 2,
+   "bpm": 100,
+   "durationMs": 30041,
+   "tags": [
+    "cinematic",
+    "intro",
+    "explainer",
+    "tech"
+   ]
+  },
+  {
+   "id": "audio/music/epic-stadium-night-aaa8f1.mp3",
+   "name": "Epic stadium night",
+   "group": "cinematic",
+   "energy": 4,
+   "bpm": 113,
+   "durationMs": 53000,
+   "tags": [
+    "epic",
+    "cinematic",
+    "night",
+    "trailer"
+   ]
+  },
+  {
+   "id": "audio/music/cold-office-piano-9bee35.mp3",
+   "name": "Cold office piano",
+   "group": "corporate",
+   "energy": 2,
+   "bpm": 115,
+   "durationMs": 60029,
+   "tags": [
+    "corporate",
+    "piano",
+    "background",
+    "explainer"
+   ]
+  },
+  {
+   "id": "audio/music/curious-low-piano-d72ee6.mp3",
+   "name": "Curious low piano",
+   "group": "corporate",
+   "energy": 3,
+   "bpm": 90,
+   "durationMs": 30041,
+   "tags": [
+    "mysterious",
+    "wonder",
+    "corporate",
+    "piano",
+    "background",
+    "explainer"
+   ]
+  },
+  {
+   "id": "audio/music/creative-tech-accelerando-62110d.mp3",
+   "name": "Creative Tech Accelerando",
+   "group": "corporate",
+   "energy": 4,
+   "bpm": 129,
+   "durationMs": 30041,
+   "tags": [
+    "corporate",
+    "explainer",
+    "tech"
+   ]
+  },
+  {
+   "id": "audio/music/uplifting-growth-piano-467a92.mp3",
+   "name": "Uplifting Growth Piano",
+   "group": "corporate",
+   "energy": 4,
+   "bpm": 115,
+   "durationMs": 42031,
+   "tags": [
+    "uplifting",
+    "corporate",
+    "piano",
+    "explainer"
+   ]
+  },
+  {
+   "id": "audio/music/minimal-tech-ambient-25420d.mp3",
+   "name": "Minimal tech ambient",
+   "group": "corporate",
+   "energy": 4,
+   "bpm": 90,
+   "durationMs": 30041,
+   "tags": [
+    "ambient",
+    "corporate",
+    "minimal",
+    "explainer",
+    "tech",
+    "ambience"
+   ]
+  },
+  {
+   "id": "audio/music/minimal-corporate-piano-d3e65c.mp3",
+   "name": "Minimal corporate piano",
+   "group": "corporate",
+   "energy": 3,
+   "bpm": 84,
+   "durationMs": 41038,
+   "tags": [
+    "corporate",
+    "minimal",
+    "piano",
+    "background",
+    "explainer"
+   ]
+  },
+  {
+   "id": "audio/music/cold-synth-heartbeat-258439.mp3",
+   "name": "Cold synth heartbeat",
+   "group": "electronic",
+   "energy": 3,
+   "bpm": 70,
+   "durationMs": 30041,
+   "tags": [
+    "electronic",
+    "synth",
+    "heartbeat"
+   ]
+  },
+  {
+   "id": "audio/music/chiptune-battle-loop-3be781.mp3",
+   "name": "Chiptune battle loop",
+   "group": "electronic",
+   "energy": 4,
+   "bpm": 70,
+   "durationMs": 30041,
+   "tags": [
+    "epic",
+    "electronic",
+    "chiptune",
+    "synth",
+    "trailer",
+    "action"
+   ]
+  },
+  {
+   "id": "audio/music/sleek-tech-house-pulse-3b3d91.mp3",
+   "name": "Sleek tech house pulse",
+   "group": "electronic",
+   "energy": 5,
+   "bpm": 112,
+   "durationMs": 30041,
+   "tags": [
+    "electronic",
+    "minimal",
+    "synth",
+    "explainer",
+    "tech",
+    "action"
+   ]
+  },
+  {
+   "id": "audio/music/neo-noir-synth-heist-33b011.mp3",
+   "name": "Neo-noir synth heist",
+   "group": "electronic",
+   "energy": 4,
+   "bpm": 113,
+   "durationMs": 46028,
+   "tags": [
+    "dark",
+    "electronic",
+    "synth"
+   ]
+  },
+  {
+   "id": "audio/music/minimal-ambient-synth-pads-50def3.mp3",
+   "name": "Minimal ambient synth pads",
+   "group": "electronic",
+   "energy": 3,
+   "bpm": 93,
+   "durationMs": 30041,
+   "tags": [
+    "ambient",
+    "electronic",
+    "minimal",
+    "synth",
+    "ambience"
+   ]
+  },
+  {
+   "id": "audio/music/cinematic-electronic-ambient-cae50d.mp3",
+   "name": "Cinematic electronic ambient",
+   "group": "electronic",
+   "energy": 4,
+   "bpm": 113,
+   "durationMs": 59037,
+   "tags": [
+    "ambient",
+    "cinematic",
+    "electronic",
+    "synth",
+    "ambience"
+   ]
+  },
+  {
+   "id": "audio/music/quiet-resolving-finale-7cf986.mp3",
+   "name": "Quiet resolving finale",
+   "group": "emotional",
+   "energy": 1,
+   "bpm": 70,
+   "durationMs": 30041,
+   "tags": [
+    "calm",
+    "emotional",
+    "outro"
+   ]
+  },
+  {
+   "id": "audio/music/keeper-s-light-reprise-587b78.mp3",
+   "name": "Keeper's light reprise",
+   "group": "emotional",
+   "energy": 2,
+   "bpm": 60,
+   "durationMs": 30041,
+   "tags": [
+    "emotional"
+   ]
+  },
+  {
+   "id": "audio/music/music-box-piano-waltz-8aa7ba.mp3",
+   "name": "Music box piano waltz",
+   "group": "emotional",
+   "energy": 3,
+   "bpm": 105,
+   "durationMs": 30041,
+   "tags": [
+    "emotional",
+    "classical",
+    "piano",
+    "bells"
+   ]
+  },
+  {
+   "id": "audio/music/intimate-downtempo-keys-ece468.mp3",
+   "name": "Intimate downtempo keys",
+   "group": "emotional",
+   "energy": 4,
+   "bpm": 107,
+   "durationMs": 30041,
+   "tags": [
+    "romantic",
+    "emotional",
+    "lofi"
+   ]
+  },
+  {
+   "id": "audio/music/lighthouse-piano-motif-a05521.mp3",
+   "name": "Lighthouse piano motif",
+   "group": "emotional",
+   "energy": 3,
+   "bpm": 120,
+   "durationMs": 30041,
+   "tags": [
+    "emotional",
+    "piano"
+   ]
+  },
+  {
+   "id": "audio/music/americana-nocturne-guitar-ccb2da.mp3",
+   "name": "Americana nocturne guitar",
+   "group": "emotional",
+   "energy": 3,
+   "bpm": 130,
+   "durationMs": 43000,
+   "tags": [
+    "emotional",
+    "folk",
+    "classical",
+    "guitar"
+   ]
+  },
+  {
+   "id": "audio/music/tang-banquet-pipa-cbe7eb.mp3",
+   "name": "Tang banquet pipa",
+   "group": "festive",
+   "energy": 4,
+   "bpm": 130,
+   "durationMs": 30041,
+   "tags": [
+    "chinese",
+    "holiday"
+   ]
+  },
+  {
+   "id": "audio/music/chiptune-victory-jingle-0b59b1.mp3",
+   "name": "Chiptune victory jingle",
+   "group": "festive",
+   "energy": 5,
+   "bpm": 107,
+   "durationMs": 30041,
+   "tags": [
+    "epic",
+    "chiptune",
+    "trailer",
+    "holiday",
+    "success",
+    "sting"
+   ]
+  },
+  {
+   "id": "audio/music/tang-banquet-pipa-88468c.mp3",
+   "name": "Tang banquet pipa",
+   "group": "festive",
+   "energy": 4,
+   "bpm": 80,
+   "durationMs": 30041,
+   "tags": [
+    "chinese",
+    "holiday"
+   ]
+  },
+  {
+   "id": "audio/music/soft-groove-returns-250103.mp3",
+   "name": "Soft groove returns",
+   "group": "lofi",
+   "energy": 2,
+   "bpm": 85,
+   "durationMs": 30041,
+   "tags": [
+    "focused",
+    "lofi",
+    "funk",
+    "drums",
+    "background"
+   ]
+  },
+  {
+   "id": "audio/music/uneasy-lounge-groove-ccba9e.mp3",
+   "name": "Uneasy lounge groove",
+   "group": "lofi",
+   "energy": 3,
+   "bpm": 80,
+   "durationMs": 45035,
+   "tags": [
+    "tense",
+    "focused",
+    "lofi",
+    "jazz",
+    "funk",
+    "drums",
+    "background",
+    "vlog"
+   ]
+  },
+  {
+   "id": "audio/music/felt-piano-head-nod-f9b9d7.mp3",
+   "name": "Felt piano head-nod",
+   "group": "lofi",
+   "energy": 4,
+   "bpm": 163,
+   "durationMs": 30041,
+   "tags": [
+    "focused",
+    "lofi",
+    "piano",
+    "vlog",
+    "title"
+   ]
+  },
+  {
+   "id": "audio/music/late-night-jazz-radio-996439.mp3",
+   "name": "Late-night jazz radio",
+   "group": "lofi",
+   "energy": 4,
+   "bpm": 74,
+   "durationMs": 59000,
+   "tags": [
+    "focused",
+    "lofi",
+    "jazz",
+    "night",
+    "vlog"
+   ]
+  },
+  {
+   "id": "audio/music/cafe-tape-piano-8646df.mp3",
+   "name": "Cafe tape piano",
+   "group": "lofi",
+   "energy": 4,
+   "bpm": 143,
+   "durationMs": 59037,
+   "tags": [
+    "focused",
+    "lofi",
+    "piano",
+    "morning",
+    "vlog",
+    "cooking",
+    "ui",
+    "click"
+   ]
+  },
+  {
+   "id": "audio/music/chiptune-lo-fi-bed-ad9d7a.mp3",
+   "name": "Chiptune lo-fi bed",
+   "group": "lofi",
+   "energy": 4,
+   "bpm": 90,
+   "durationMs": 30000,
+   "tags": [
+    "focused",
+    "lofi",
+    "chiptune",
+    "background",
+    "vlog"
+   ]
+  },
+  {
+   "id": "audio/music/clockwork-pizzicato-pulse-765cbb.mp3",
+   "name": "Clockwork pizzicato pulse",
+   "group": "playful",
+   "energy": 2,
+   "bpm": 90,
+   "durationMs": 60029,
+   "tags": [
+    "playful",
+    "strings",
+    "plucked",
+    "kids",
+    "comedy"
+   ]
+  },
+  {
+   "id": "audio/music/clockwork-marimba-pizzicato-ebd905.mp3",
+   "name": "Clockwork marimba pizzicato",
+   "group": "playful",
+   "energy": 3,
+   "bpm": 70,
+   "durationMs": 30041,
+   "tags": [
+    "playful",
+    "strings",
+    "mallets",
+    "plucked",
+    "vlog",
+    "kids",
+    "comedy"
+   ]
+  },
+  {
+   "id": "audio/music/clockwork-marimba-suite-575b3f.mp3",
+   "name": "Clockwork marimba suite",
+   "group": "playful",
+   "energy": 4,
+   "bpm": 100,
+   "durationMs": 30041,
+   "tags": [
+    "playful",
+    "classical",
+    "mallets",
+    "vlog",
+    "kids"
+   ]
+  },
+  {
+   "id": "audio/music/quirky-folk-with-whistling-00560d.mp3",
+   "name": "Quirky folk with whistling",
+   "group": "playful",
+   "energy": 4,
+   "bpm": 104,
+   "durationMs": 54047,
+   "tags": [
+    "playful",
+    "folk",
+    "vlog"
+   ]
+  },
+  {
+   "id": "audio/music/wonky-synth-versus-pulse-3bf0a8.mp3",
+   "name": "Wonky synth versus pulse",
+   "group": "playful",
+   "energy": 4,
+   "bpm": 100,
+   "durationMs": 36049,
+   "tags": [
+    "playful",
+    "synth",
+    "vlog"
+   ]
+  },
+  {
+   "id": "audio/music/curious-mallet-ticks-d57e03.mp3",
+   "name": "Curious mallet ticks",
+   "group": "playful",
+   "energy": 3,
+   "bpm": 96,
+   "durationMs": 41038,
+   "tags": [
+    "mysterious",
+    "playful",
+    "wonder",
+    "mallets",
+    "vlog",
+    "kids",
+    "click",
+    "clock"
+   ]
+  },
+  {
+   "id": "audio/music/brooding-cello-storm-8cca89.mp3",
+   "name": "Brooding cello storm",
+   "group": "tense",
+   "energy": 2,
+   "bpm": 75,
+   "durationMs": 30041,
+   "tags": [
+    "tense",
+    "dark",
+    "strings",
+    "weather"
+   ]
+  },
+  {
+   "id": "audio/music/curious-piano-documentary-e924fa.mp3",
+   "name": "Curious piano documentary",
+   "group": "tense",
+   "energy": 3,
+   "bpm": 95,
+   "durationMs": 30041,
+   "tags": [
+    "tense",
+    "mysterious",
+    "wonder",
+    "piano",
+    "documentary"
+   ]
+  },
+  {
+   "id": "audio/music/urgent-synth-pulse-b5f039.mp3",
+   "name": "Urgent synth pulse",
+   "group": "tense",
+   "energy": 4,
+   "bpm": 95,
+   "durationMs": 30041,
+   "tags": [
+    "tense",
+    "synth"
+   ]
+  },
+  {
+   "id": "audio/music/night-suspense-pulse-2b878e.mp3",
+   "name": "Night suspense pulse",
+   "group": "tense",
+   "energy": 3,
+   "bpm": 70,
+   "durationMs": 30041,
+   "tags": [
+    "tense",
+    "night"
+   ]
+  },
+  {
+   "id": "audio/music/dread-ritual-drums-e7ee33.mp3",
+   "name": "Dread ritual drums",
+   "group": "tense",
+   "energy": 3,
+   "bpm": 81,
+   "durationMs": 60029,
+   "tags": [
+    "tense",
+    "dark",
+    "solemn",
+    "drums"
+   ]
+  },
+  {
+   "id": "audio/music/continuous-suspense-heartbeat-0a95da.mp3",
+   "name": "Continuous suspense heartbeat",
+   "group": "tense",
+   "energy": 2,
+   "bpm": 90,
+   "durationMs": 60029,
+   "tags": [
+    "tense",
+    "heartbeat"
+   ]
+  },
+  {
+   "id": "audio/music/hopeful-indie-electronic-build-00523e.mp3",
+   "name": "Hopeful indie electronic build",
+   "group": "upbeat",
+   "energy": 3,
+   "bpm": 95,
+   "durationMs": 45035,
+   "tags": [
+    "happy",
+    "uplifting",
+    "electronic",
+    "synth",
+    "trailer",
+    "vlog",
+    "riser"
+   ]
+  },
+  {
+   "id": "audio/music/bubblegum-funk-finale-e202aa.mp3",
+   "name": "Bubblegum funk finale",
+   "group": "upbeat",
+   "energy": 4,
+   "bpm": 63,
+   "durationMs": 30041,
+   "tags": [
+    "happy",
+    "pop",
+    "funk",
+    "outro",
+    "vlog"
+   ]
+  },
+  {
+   "id": "audio/music/bouncy-funk-pop-tech-ad-bb4b6c.mp3",
+   "name": "Bouncy funk pop tech ad",
+   "group": "upbeat",
+   "energy": 5,
+   "bpm": 84,
+   "durationMs": 30041,
+   "tags": [
+    "happy",
+    "playful",
+    "pop",
+    "funk",
+    "corporate",
+    "vlog",
+    "explainer",
+    "tech"
+   ]
+  },
+  {
+   "id": "audio/music/plucky-light-underscore-f5be3b.mp3",
+   "name": "Plucky Light Underscore",
+   "group": "upbeat",
+   "energy": 4,
+   "bpm": 112,
+   "durationMs": 30041,
+   "tags": [
+    "happy",
+    "plucked",
+    "background",
+    "vlog"
+   ]
+  },
+  {
+   "id": "audio/music/triumphant-pop-finale-cd6ddf.mp3",
+   "name": "Triumphant pop finale",
+   "group": "upbeat",
+   "energy": 5,
+   "bpm": 126,
+   "durationMs": 30041,
+   "tags": [
+    "happy",
+    "epic",
+    "pop",
+    "outro",
+    "trailer",
+    "vlog",
+    "action",
+    "bubble-pop"
+   ]
+  },
+  {
+   "id": "audio/music/playful-electronic-pop-c27b46.mp3",
+   "name": "Playful electronic pop",
+   "group": "upbeat",
+   "energy": 5,
+   "bpm": 120,
+   "durationMs": 45035,
+   "tags": [
+    "happy",
+    "playful",
+    "electronic",
+    "pop",
+    "synth",
+    "vlog",
+    "action",
+    "bubble-pop"
+   ]
+  },
+  {
+   "id": "audio/music/quiet-morning-piano-a6662d.mp3",
+   "name": "Quiet morning piano",
+   "group": "warm",
+   "energy": 1,
+   "bpm": 89,
+   "durationMs": 30041,
+   "tags": [
+    "calm",
+    "warm",
+    "piano",
+    "morning",
+    "background"
+   ]
+  },
+  {
+   "id": "audio/music/quiet-hopeful-awakening-bcce58.mp3",
+   "name": "Quiet hopeful awakening",
+   "group": "warm",
+   "energy": 2,
+   "bpm": 90,
+   "durationMs": 30041,
+   "tags": [
+    "calm",
+    "uplifting",
+    "warm",
+    "wonder",
+    "background"
+   ]
+  },
+  {
+   "id": "audio/music/acoustic-morning-groove-80c778.mp3",
+   "name": "Acoustic morning groove",
+   "group": "warm",
+   "energy": 3,
+   "bpm": 92,
+   "durationMs": 30041,
+   "tags": [
+    "warm",
+    "folk",
+    "funk",
+    "drums",
+    "morning",
+    "background",
+    "vlog"
+   ]
+  },
+  {
+   "id": "audio/music/cafe-morning-guitar-951027.mp3",
+   "name": "Cafe Morning Guitar",
+   "group": "warm",
+   "energy": 4,
+   "bpm": 90,
+   "durationMs": 30041,
+   "tags": [
+    "warm",
+    "guitar",
+    "morning",
+    "vlog",
+    "cooking"
+   ]
+  },
+  {
+   "id": "audio/music/study-room-cello-bed-240fff.mp3",
+   "name": "Study room cello bed",
+   "group": "warm",
+   "energy": 2,
+   "bpm": 60,
+   "durationMs": 60029,
+   "tags": [
+    "warm",
+    "focused",
+    "strings",
+    "background"
+   ]
+  },
+  {
+   "id": "audio/music/garden-serenade-piano-strings-5533fa.mp3",
+   "name": "Garden serenade piano strings",
+   "group": "warm",
+   "energy": 2,
+   "bpm": 68,
+   "durationMs": 30041,
+   "tags": [
+    "warm",
+    "piano",
+    "strings",
+    "morning",
+    "background",
+    "nature"
+   ]
+  }
+ ]
+}

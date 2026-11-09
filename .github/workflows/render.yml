@@ -1,0 +1,149 @@
+name: render
+
+# Phone → GitHub Actions. The page in /cloud dispatches this with a source URL,
+# then downloads render-<run_number> and deletes it.
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: 'Direct video URL (tmpfiles.org page link or any direct mp4/github asset URL)'
+        required: true
+        type: string
+      count:
+        description: 'How many clips (1-8)'
+        required: false
+        default: '4'
+        type: string
+      template:
+        description: 'Caption template (pop | karaoke | box | neon)'
+        required: false
+        default: 'pop'
+        type: string
+      look:
+        description: 'Colour look id (none = untouched)'
+        required: false
+        default: 'none'
+        type: string
+      music:
+        description: 'Music (auto | none)'
+        required: false
+        default: 'auto'
+        type: string
+      title:
+        description: 'Optional title / hook over the speaker card'
+        required: false
+        default: ''
+        type: string
+      broll:
+        description: 'B-roll inserts (on | off)'
+        required: false
+        default: 'on'
+        type: string
+      source_release_tag:
+        description: 'Optional: release tag holding the source, deleted after the render'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: render
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    # Pinned: ubuntu-latest is moving to 26.04 during Nov 2026.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      HWACCEL: cpu
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      FFPROBE_PATH: /usr/bin/ffprobe
+      CF_QUIET: '1'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          ffmpeg -version | head -n 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Download source
+        env:
+          SOURCE_URL: ${{ inputs.source_url }}
+        run: |
+          node scripts/fetch-source.mjs --url "$SOURCE_URL" --out source.mp4
+          du -h source.mp4
+
+      - name: Render
+        env:
+          COUNT: ${{ inputs.count }}
+          TEMPLATE: ${{ inputs.template }}
+          LOOK: ${{ inputs.look }}
+          MUSIC: ${{ inputs.music }}
+          TITLE: ${{ inputs.title }}
+          BROLL: ${{ inputs.broll }}
+        run: |
+          node scripts/cloud-render.mjs \
+            --src source.mp4 --out out \
+            --count "$COUNT" --template "$TEMPLATE" --look "$LOOK" \
+            --music "$MUSIC" --title "$TITLE" --broll "$BROLL"
+
+      - name: Notes
+        env:
+          TITLE: ${{ inputs.title }}
+        run: node scripts/release-notes.mjs --manifest out/manifest.json --out release-body.md --title "$TITLE"
+
+      - name: Zip
+        run: |
+          cd out
+          zip -q -j clips.zip clip-*.mp4 manifest.json
+          ls -lh
+
+      - name: Publish release
+        if: success()
+        run: |
+          TAG="render-${{ github.run_number }}"
+          # Re-running the same job keeps the run number: clear a stale tag first.
+          gh release delete "$TAG" --yes --cleanup-tag >/dev/null 2>&1 || true
+          gh release create "$TAG" \
+            out/clips.zip out/manifest.json out/clip-*.jpg \
+            --title "Clips · run ${{ github.run_number }}" \
+            --notes-file release-body.md
+          {
+            echo "### ✅ ${{ inputs.count }} clips ready"
+            echo ""
+            echo "Tag: \`$TAG\`"
+            echo ""
+            echo "Open the phone page and download, then delete the release."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Drop source release
+        if: always() && inputs.source_release_tag != ''
+        env:
+          TAG: ${{ inputs.source_release_tag }}
+        run: gh release delete "$TAG" --yes --cleanup-tag || true
+
+      - name: Keep the log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-log-${{ github.run_number }}
+          path: |
+            out/log.txt
+            out/manifest.json
+          if-no-files-found: ignore
+          retention-days: 3
