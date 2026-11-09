@@ -201,14 +201,23 @@ function cardLabel(slot) {
   return meat.slice(0, 4).join(' ');
 }
 
+/** Card text: no dangling ASR punctuation, always capitalised. */
+function tidyLabel(s) {
+  const t = String(s || '').replace(/\s+/g, ' ')
+    .replace(/^[\s"'`(\[]+/, '')
+    .replace(/[\s.,;:!?"'`)\]\-–—]+$/, '')
+    .trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
+}
+
 /** One slot → one render row (asset query, or a text card when nothing fits). */
 function slotRow(slot, answers = []) {
   const hit = answers.find((a) => Number(a?.i) === slot.i)
     || answers.find((a) => Math.abs(Number(a?.t0) - slot.t0) < 0.6);
   const topic = [...new Set((Array.isArray(hit?.topic) ? hit.topic : [hit?.topic])
     .map((q) => cleanQuery(q)).filter((q) => q && !isWeakQuery(q)))].slice(0, 3);
-  const label = String(hit?.label || '').split(/\s+/).slice(0, 4).join(' ').trim();
-  const spoken = cardLabel(slot);
+  const label = tidyLabel(String(hit?.label || '').split(/\s+/).slice(0, 4).join(' '));
+  const spoken = tidyLabel(cardLabel(slot));
   // A text card shows what was actually said; the model's label is a caption
   // idea and often drifts into mood words ("badlaav ka vibe").
   return { t0: slot.t0, t1: slot.t1, topic, label: topic.length ? label || spoken : spoken, where: hit ? 'llm' : 'slot' };
@@ -239,7 +248,7 @@ export async function mineTopics({ words = [], start, end, hook = '', max = 4, o
     usable = (words || []).filter((w) => w.start >= start - 0.01 && w.end <= end + 0.01);
     const text = usable.map((w) => w.word).join(' ');
     if (!text.trim()) return [];
-    const key = crypto.createHash('sha1').update(`v17|${start}|${end}|${hook}|${text}`).digest('hex').slice(0, 16);
+    const key = crypto.createHash('sha1').update(`v18|${start}|${end}|${hook}|${text}`).digest('hex').slice(0, 16);
     const file = cachePath(key);
     if (fs.existsSync(file)) {
       try {
