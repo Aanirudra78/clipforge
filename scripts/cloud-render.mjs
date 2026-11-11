@@ -19,10 +19,11 @@ import { analyzeAudio, detectScenes, trackSubject } from '../server/analyze.js';
 import { transcribe } from '../server/transcribe.js';
 import { transliterate } from '../server/translit.js';
 import { pickClips, speechUnits, sentences as indexSentences, dedupeWords } from '../server/select.js';
+import { pickHighlights } from '../server/highlights.js';
 import { curate } from '../server/curate.js';
 import { renderClip, framePlan } from '../server/render.js';
 import { planCuts } from '../server/cuts.js';
-import { BROLL } from '../server/config.js';
+import { BROLL, setFps } from '../server/config.js';
 import { planBroll, brollHealth } from '../server/broll/index.js';
 import { resolveMusic } from '../server/music/index.js';
 import { lookMusic } from '../server/looks/index.js';
@@ -45,12 +46,21 @@ if (!SRC || !fs.existsSync(SRC)) {
 }
 fs.mkdirSync(OUT, { recursive: true });
 
+const MODE = String(args.mode || 'podcast').toLowerCase() === 'gaming' ? 'gaming' : 'podcast';
+// Gaming clips: the game is the b-roll, a music bed fights the gameplay audio,
+// and captions only make sense when the commentary is real speech (pure
+// gameplay ASR comes back as hallucinated garbage). Each is opt-out.
+const MUSIC_DEFAULT = MODE === 'gaming' ? 'none' : 'auto';
+const BROLL_DEFAULT = MODE === 'gaming' ? false : (args.broll !== 'off' && BROLL);
+const CAPTIONS = String(args.captions || 'auto').toLowerCase(); // auto | on | off
+
 const OPT = {
   count: clampInt(args.count, 1, 8, 6),
+  mode: MODE,
   template: args.template || 'pop',
   accent: args.accent || 'yellow',
   look: args.look || 'none',
-  music: args.music || 'auto',
+  music: args.music || MUSIC_DEFAULT,
   musicTrack: args.musicTrack || '',
   musicGain: Number(args.musicGain || 0.22),
   punch: Number(args.punch || 1.3),
@@ -59,7 +69,7 @@ const OPT = {
   crop: args.crop || 'auto',
   zoom: 0,
   title: args.title || '',
-  broll: args.broll !== 'off' && BROLL,
+  broll: BROLL_DEFAULT,
 };
 
 function clampInt(v, lo, hi, dflt) {
@@ -83,6 +93,13 @@ try {
   step('probe');
   const meta = await probe(SRC);
   log(`source ${meta.width}x${meta.height} ${meta.duration.toFixed(1)}s ${meta.fps}fps audio=${Boolean(meta.hasAudio)}`);
+
+  // Output fps follows the source (60 -> 60, 30 -> 30) but never above the cap:
+  // on a 2-core Actions runner every extra frame is encoder time, so the default
+  // cap is 30 unless the caller passes --max-fps 60.
+  const maxFps = clampInt(args.maxFps ?? args['max-fps'] ?? process.env.CF_MAX_FPS ?? 30, 24, 60, 30);
+  const fps = setFps(Math.min(maxFps, meta.fps >= 50 ? 60 : 30));
+  log(`output fps ${fps} (source ${meta.fps}, cap ${maxFps}, mode ${OPT.mode})`);
 
   step('audio');
   const audio = await analyzeAudio(SRC, (x) => { if (x % 0.25 < 0.01) log(`listening ${(x * 100).toFixed(0)}%`); });
@@ -128,44 +145,83 @@ try {
   }
 
   step('curate');
-  const units = speechUnits(tWords, audio.silence, meta.duration);
-  const sentences = indexSentences(tWords, audio.silence, meta.duration);
   let chosen = [];
-  if (hasWords && sentences.length >= 4) {
-    chosen = await curate({
-      sentences, count: OPT.count, minLen: 18, maxLen: 42,
-      title: OPT.title || path.basename(SRC), silence: audio.silence, onLog: log,
-    }) || [];
-  }
-  if (!chosen.length) {
-    chosen = pickClips({
-      units, energy: audio.energy, step: audio.step, silence: audio.silence,
-      duration: meta.duration, count: OPT.count, minLen: 16, maxLen: 46,
-    }).map((c) => ({ ...c, source: 'heuristic' }));
-    log(`${chosen.length} moments picked with the audio heuristic`);
+  let sentenceCount = 0;
+  if (OPT.mode === 'gaming') {
+    // The transcript still runs (facecam commentary gets captions), but the
+    // SELECTION ignores it: highlights are loudness-vs-neighbourhood peaks plus
+    // scene-cut density, snapped to cuts/silence, 2 s padded.
+    const hl = pickHighlights({
+      energy: audio.energy, step: audio.step, silence: audio.silence, scenes,
+      duration: meta.duration, count: OPT.count,
+      targetLen: clampInt(args.len ?? args['clip-len'], 8, 45, 20), pad: 2,
+    });
+    chosen = hl.map((c) => ({ ...c, source: 'audio', hook: '' }));
+    log(`${chosen.length} action moments picked from audio peaks`);
+    if (!chosen.length) throw new Error('no clips could be picked from this video');
   } else {
-    log(`${chosen.length} AI-picked moments out of ${sentences.length} sentences`);
+    const units = speechUnits(tWords, audio.silence, meta.duration);
+    const sentences = indexSentences(tWords, audio.silence, meta.duration);
+    sentenceCount = sentences.length;
+    if (hasWords && sentences.length >= 4) {
+      chosen = await curate({
+        sentences, count: OPT.count, minLen: 18, maxLen: 42,
+        title: OPT.title || path.basename(SRC), silence: audio.silence, onLog: log,
+      }) || [];
+    }
+    if (!chosen.length) {
+      chosen = pickClips({
+        units, energy: audio.energy, step: audio.step, silence: audio.silence,
+        duration: meta.duration, count: OPT.count, minLen: 16, maxLen: 46,
+      }).map((c) => ({ ...c, source: 'heuristic' }));
+      log(`${chosen.length} moments picked with the audio heuristic`);
+    } else {
+      log(`${chosen.length} AI-picked moments out of ${sentences.length} sentences`);
+    }
+    if (!chosen.length) throw new Error('no clips could be picked from this video');
   }
-  if (!chosen.length) throw new Error('no clips could be picked from this video');
+
+  // Caption gate for gaming: Whisper on pure gameplay audio returns hallucinated
+  // phrases. Real commentary shows up as a sane words-per-minute with varied
+  // vocabulary, so rate it and decide once per video.
+  let captions = CAPTIONS !== 'off';
+  if (captions && OPT.mode === 'gaming') {
+    const wpm = tWords.length / Math.max(1, meta.duration / 60);
+    const uniq = new Set(tWords.slice(0, 4000).map((w) => String(w.word).toLowerCase().replace(/[^\p{L}\p{N}]/gu, ''))).size;
+    const variety = tWords.length ? uniq / tWords.length : 0;
+    const sane = wpm >= 45 && wpm <= 320 && variety >= 0.25;
+    if (!sane) {
+      captions = false;
+      log(`captions off: speech looks sparse or garbled (wpm ${Math.round(wpm)}, variety ${(variety * 100).toFixed(0)}%)`);
+    } else {
+      log(`captions on: speech ${Math.round(wpm)} wpm, variety ${(variety * 100).toFixed(0)}%`);
+    }
+  }
 
   step('speakers');
   let subject = null;
-  const windows = chosen
-    .map((c) => ({ start: Math.max(0, c.start - 2), end: c.end + 2 }))
-    .sort((a, b) => a.start - b.start);
-  subject = await trackSubject(SRC, windows).catch(() => null);
-  if (subject) log(`speaker tracking ${(subject.confidence * 100).toFixed(0)}%`);
+  if (OPT.mode !== 'gaming') {
+    // The skin-blob tracker means nothing on gameplay footage; skip it.
+    const windows = chosen
+      .map((c) => ({ start: Math.max(0, c.start - 2), end: c.end + 2 }))
+      .sort((a, b) => a.start - b.start);
+    subject = await trackSubject(SRC, windows).catch(() => null);
+    if (subject) log(`speaker tracking ${(subject.confidence * 100).toFixed(0)}%`);
+  }
 
   step('render');
-  const autoCrop = OPT.crop === 'auto' ? 'punch' : OPT.crop;
+  // Gaming keeps the whole frame (facecam + HUD live in it) as a wide card over
+  // the blur bed; podcasts punch in on the talking head.
+  const autoCrop = OPT.crop === 'auto' ? (OPT.mode === 'gaming' ? 'blur' : 'punch') : OPT.crop;
   const made = [];
   for (let i = 0; i < chosen.length; i++) {
     const c = chosen[i];
     const cutAt = Number.isFinite(c.cut) ? c.cut : c.start;
     const lastWordEnd = c.words?.length ? c.words[c.words.length - 1].end : null;
-    const words = lastWordEnd
+    let words = lastWordEnd
       ? tWords.filter((w) => w.start >= cutAt - 0.02 && w.start <= lastWordEnd)
       : tWords.filter((w) => w.start >= cutAt - 0.001 && w.start < c.end);
+    if (!captions) words = [];
     const win = subject ? subject.nodes.filter((n) => n.t >= c.start - 1 && n.t <= c.end + 1) : [];
     const twoUp = win.length >= 3
       ? win.filter((n) => n.two).length / win.length >= 0.4
@@ -207,6 +263,8 @@ try {
       cuts: plan.cuts, look: OPT.look,
       musicPath: music?.path, musicBpm: music?.bpm || 0, musicGain: OPT.musicGain,
       musicPulse: true, broll,
+      punchIns: (c.peaks || []).map((t) => ({ t: t - c.start })),
+      showBar: captions,
       onLog: log,
       onProgress: () => {},
     });
@@ -224,6 +282,8 @@ try {
       score: c.score ?? 0,
       framing: out.framing ?? framing.reason,
       mode: out.mode || '', encoder: out.encoder || '',
+      peaks: c.peaks || [],
+      captions: words.length > 0,
       visuals: (out.broll?.assets || 0) + (out.broll?.cards || 0),
       broll: (broll || []).map((r) => ({ query: r.query, label: r.label, kind: r.kind, provider: r.provider })),
       music: music?.name || '',
@@ -253,8 +313,9 @@ try {
     },
     options: OPT,
     stats: {
-      words: tWords.length, sentences: sentences.length,
+      words: tWords.length, sentences: sentenceCount,
       clips: made.length, scenes: scenes?.length || 0,
+      fps, captions,
       seconds: Math.round((Date.now() - t0) / 1000),
     },
     clips: made,

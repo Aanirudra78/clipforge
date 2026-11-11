@@ -6,8 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       source_url:
-        description: 'Direct video URL (tmpfiles.org page link or any direct mp4/github asset URL)'
+        description: 'Video URL (tmpfiles.org page link, direct mp4, or YouTube/TikTok/Twitch link)'
         required: true
+        type: string
+      mode:
+        description: 'Clip mode (podcast = speech highlights, gaming = action highlights)'
+        required: false
+        default: 'podcast'
         type: string
       count:
         description: 'How many clips (1-8)'
@@ -44,6 +49,11 @@ on:
         required: false
         default: ''
         type: string
+      fps:
+        description: 'Max output frame rate (30 | 60; a higher-fps source is capped)'
+        required: false
+        default: '30'
+        type: string
 
 concurrency:
   group: render
@@ -74,6 +84,14 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends ffmpeg
           ffmpeg -version | head -n 2
 
+      # Pinned yt-dlp build for YouTube / TikTok / Twitch links (the same
+      # version proven on the laptop). ~15 MB, a few seconds to fetch.
+      - name: Install yt-dlp
+        run: |
+          curl -fsSL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_linux
+          chmod +x /usr/local/bin/yt-dlp
+          yt-dlp --version
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -90,17 +108,19 @@ jobs:
 
       - name: Render
         env:
+          MODE: ${{ inputs.mode }}
           COUNT: ${{ inputs.count }}
           TEMPLATE: ${{ inputs.template }}
           LOOK: ${{ inputs.look }}
           MUSIC: ${{ inputs.music }}
           TITLE: ${{ inputs.title }}
           BROLL: ${{ inputs.broll }}
+          FPS: ${{ inputs.fps }}
         run: |
           node scripts/cloud-render.mjs \
             --src source.mp4 --out out \
-            --count "$COUNT" --template "$TEMPLATE" --look "$LOOK" \
-            --music "$MUSIC" --title "$TITLE" --broll "$BROLL"
+            --mode "$MODE" --count "$COUNT" --template "$TEMPLATE" --look "$LOOK" \
+            --music "$MUSIC" --title "$TITLE" --broll "$BROLL" --max-fps "$FPS"
 
       - name: Notes
         env:
@@ -124,8 +144,9 @@ jobs:
             --title "Clips · run ${{ github.run_number }}" \
             --notes-file release-body.md
           {
-            echo "### ✅ ${{ inputs.count }} clips ready"
+            echo "### ✅ Clips ready"
             echo ""
+            echo "Mode: \`${{ inputs.mode }}\` · max fps: \`${{ inputs.fps }}\`"
             echo "Tag: \`$TAG\`"
             echo ""
             echo "Open the phone page and download, then delete the release."

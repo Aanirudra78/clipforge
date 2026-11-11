@@ -19,10 +19,22 @@ First boot takes a moment: it probes ffmpeg/nvenc and opens `data/clipforge.db`.
 ## Phone / cloud (free, PC off)
 
 `CLOUD.md` explains the zero-cost route: the page in `cloud/` is published to
-GitHub Pages, the phone uploads a source video, `render.yml` renders it on a
+GitHub Pages, the phone uploads a source video (or pastes a YouTube / TikTok /
+Twitch link — the runner downloads it with yt-dlp), `render.yml` renders it on a
 GitHub Actions runner (public repo = unlimited minutes) and publishes a
 `render-<run_number>` release the page downloads and deletes. The same pipeline
 runs headless: `node scripts/cloud-render.mjs --src video.mp4 --out out`.
+
+Two modes, chosen on the page or with `--mode`:
+
+- **podcast** (default) — speech-driven highlights, b-roll cards, music bed.
+- **gaming** — `server/highlights.js` picks the loudest action windows (RMS
+  energy vs the 60 s neighbourhood, scene-cut density, snapped to cuts/silence,
+  2 s padding), the whole frame stays on the card (facecam + HUD), and a
+  `zoompan` punch-in fires on each audio peak. Music and b-roll are off;
+  captions render only when the transcript looks like real commentary — pure
+  gameplay (sparse or garbled ASR) comes out caption-free. Output fps follows
+  the source but is capped by `--max-fps` (default 30).
 
 ## What happens on a run
 

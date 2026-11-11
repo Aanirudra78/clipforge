@@ -42,4 +42,18 @@ export const PASSWORD = process.env.CLIPFORGE_PASSWORD || '';
 
 export const OUT_W = 1080;
 export const OUT_H = 1920;
-export const FPS = 30;
+
+/**
+ * Output frame rate. 30 is the default because it halves render time and every
+ * short-form platform re-encodes anyway; 60 fps sources can opt in to 60 with
+ * `setFps(60)` (the cloud runner caps this at 30 unless the caller asks).
+ *
+ * `export let` is a live module binding: every importer sees the new value, so
+ * the render graph and the caption timing stay on the same clock.
+ */
+export let FPS = Number(process.env.CLIPFORGE_FPS || 30) || 30;
+export function setFps(n) {
+  const v = Number(n);
+  if (Number.isFinite(v) && v >= 12 && v <= 60) FPS = Math.round(v);
+  return FPS;
+}

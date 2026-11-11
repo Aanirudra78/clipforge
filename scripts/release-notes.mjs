@@ -20,6 +20,8 @@ const args = Object.fromEntries(
 
 const manifest = JSON.parse(fs.readFileSync(args.manifest || 'out/manifest.json', 'utf8'));
 const title = (args.title || '').trim() || manifest.source?.name || 'clips';
+const mode = manifest.options?.mode || 'podcast';
+const fps = manifest.stats?.fps || 30;
 const clips = (manifest.clips || []).map((c) => ({
   file: c.file,
   thumb: c.thumb,
@@ -27,11 +29,13 @@ const clips = (manifest.clips || []).map((c) => ({
   duration: Math.round((c.duration || 0) * 10) / 10,
   visuals: c.visuals || 0,
   music: c.music || '',
+  captions: c.captions !== false,
 }));
 
 const compact = {
   v: 1,
   title,
+  mode,
   created: manifest.created,
   source: {
     name: manifest.source?.name,
@@ -39,18 +43,18 @@ const compact = {
     w: manifest.source?.width,
     h: manifest.source?.height,
   },
-  stats: { clips: clips.length, words: manifest.stats?.words || 0, seconds: manifest.stats?.seconds || 0 },
+  stats: { clips: clips.length, words: manifest.stats?.words || 0, seconds: manifest.stats?.seconds || 0, fps },
   clips,
 };
 
 const lines = [
   `**${title}**`,
   '',
-  `${clips.length} clip${clips.length === 1 ? '' : 's'} · ${compact.stats.seconds}s render`,
+  `${clips.length} clip${clips.length === 1 ? '' : 's'} · mode \`${mode}\` · ${fps} fps · ${compact.stats.seconds}s render`,
   '',
 ];
 for (const c of clips) {
-  lines.push(`- \`${c.file}\` · ${c.duration}s · ${c.visuals} visual${c.visuals === 1 ? '' : 's'}${c.hook ? ` · ${c.hook}` : ''}`);
+  lines.push(`- \`${c.file}\` · ${c.duration}s${c.visuals ? ` · ${c.visuals} visual${c.visuals === 1 ? '' : 's'}` : ''}${c.captions ? '' : ' · no captions'}${c.hook ? ` · ${c.hook}` : ''}`);
 }
 lines.push('', `<!--CF:${JSON.stringify(compact)}-->`, '');
 

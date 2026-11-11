@@ -103,12 +103,12 @@
 </head>
 <body>
   <h1>ClipForge <span>Cloud</span></h1>
-  <p class="sub">Phone se video bhejo, GitHub par render, clips wapas. PC off ho to bhi chalta hai.</p>
+  <p class="sub">Send a video from your phone, render on GitHub, download the clips. Works even when your PC is off.</p>
 
   <div id="banner"></div>
 
   <section class="card" id="setupCard">
-    <h2>1 Â· GitHub setup</h2>
+    <h2>1 &middot; GitHub setup</h2>
     <label for="repo">Repository (owner/name)</label>
     <input id="repo" type="text" placeholder="yourname/clipforge" autocomplete="off" autocapitalize="off" spellcheck="false">
     <label for="token">Fine-grained token (Actions + Contents: read &amp; write)</label>
@@ -118,38 +118,45 @@
       <button id="testCfg" class="ghost">Test connection</button>
       <button id="forgetCfg" class="ghost">Forget</button>
     </div>
-    <div id="cfgNote" class="note">Token sirf is phone ke browser me rehta hai. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Token banao â†—</a></div>
+    <div id="cfgNote" class="note">The token stays in this phone's browser only. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a token &nearr;</a></div>
   </section>
 
   <section class="card" id="sourceCard">
-    <h2>2 Â· Video</h2>
+    <h2>2 &middot; Video</h2>
     <div class="tabs">
-      <button id="tabUpload" class="on">Phone se upload</button>
-      <button id="tabLink">Link paste karo</button>
+      <button id="tabUpload" class="on">Upload from phone</button>
+      <button id="tabLink">Paste a link</button>
     </div>
 
     <div id="paneUpload">
       <label class="drop" for="file">
-        <b>Video chuno</b>
-        <span id="fileHint">mp4 / mov Â· max 100 MB</span>
+        <b>Choose a video</b>
+        <span id="fileHint">mp4 / mov &middot; max 100 MB</span>
       </label>
       <input id="file" type="file" accept="video/*" class="hidden">
       <div class="bar hidden" id="upBar"><i></i></div>
-      <div id="upNote" class="note">Upload tmpfiles.org par jaata hai aur 24 ghante me apne aap delete ho jaata hai. Screen band mat karo jab tak upload khatam na ho.</div>
+      <div id="upNote" class="note">The upload goes to tmpfiles.org and is deleted automatically after 24 hours. Keep this screen open until the upload finishes.</div>
     </div>
 
     <div id="paneLink" class="hidden">
-      <label for="link">Direct video link</label>
-      <input id="link" type="url" placeholder="https://.../video.mp4" autocapitalize="off" spellcheck="false">
+      <label for="link">Video link</label>
+      <input id="link" type="url" placeholder="YouTube, TikTok, Twitch or any direct mp4 link" autocapitalize="off" spellcheck="false">
       <label for="sourceTag">Release tag (optional)</label>
       <input id="sourceTag" type="text" placeholder="source-1794200000" autocapitalize="off" spellcheck="false">
-      <div class="note">tmpfiles page link bhi chalega. Link GitHub release se ho to tag do â€” render ke baad source delete ho jayega.</div>
+      <div class="note">A tmpfiles page link works too. If the link points to a GitHub release, give the tag above so the source is deleted after the render. YouTube links: public videos only (private / members-only / age-gated videos are blocked).</div>
     </div>
   </section>
 
   <section class="card">
-    <h2>3 Â· Style</h2>
+    <h2>3 &middot; Style</h2>
     <div class="row">
+      <div>
+        <label for="mode">Mode</label>
+        <select id="mode">
+          <option value="podcast" selected>Podcast / talk</option>
+          <option value="gaming">Gaming</option>
+        </select>
+      </div>
       <div>
         <label for="count">Clips</label>
         <select id="count">
@@ -157,6 +164,9 @@
           <option>5</option><option>6</option><option>8</option>
         </select>
       </div>
+    </div>
+    <div id="modeNote" class="note">Talk mode finds the best spoken moments. Gaming mode finds the loudest action (kills, explosions, screams) and punches in on the peaks.</div>
+    <div class="row">
       <div>
         <label for="template">Captions</label>
         <select id="template">
@@ -164,6 +174,13 @@
           <option value="karaoke">Karaoke Clean</option>
           <option value="box">Minimal Box</option>
           <option value="neon">Neon Punch</option>
+        </select>
+      </div>
+      <div>
+        <label for="fps">Frame rate</label>
+        <select id="fps">
+          <option value="30" selected>30 (fast render)</option>
+          <option value="60">60 (smooth, slower)</option>
         </select>
       </div>
     </div>
@@ -192,7 +209,7 @@
       <div>
         <label for="broll">B-roll</label>
         <select id="broll">
-          <option value="on" selected>On (2â€“4 inserts)</option>
+          <option value="on" selected>On (2&ndash;4 inserts)</option>
           <option value="off">Off</option>
         </select>
       </div>
@@ -201,18 +218,18 @@
     <input id="title" type="text" placeholder="e.g. Bill Gates on money" autocomplete="off">
   </section>
 
-  <button id="go" class="primary wide">Render shuru karo</button>
+  <button id="go" class="primary wide">Start render</button>
   <div id="goNote" class="note"></div>
 
   <section class="card hidden" id="runCard">
     <h2 id="runTitle">Render</h2>
     <div class="stats">
-      <div class="stat"><b id="runState">â€”</b><span>status</span></div>
+      <div class="stat"><b id="runState">&mdash;</b><span>status</span></div>
       <div class="stat"><b id="runTime">0:00</b><span>elapsed</span></div>
     </div>
     <div id="runBody"></div>
     <div class="btn-row">
-      <button id="openRun" class="ghost">Actions log â†—</button>
+      <button id="openRun" class="ghost">Actions log &nearr;</button>
       <button id="forgetRun" class="ghost">Clear</button>
     </div>
   </section>
@@ -221,13 +238,13 @@
     <h2>Clips</h2>
     <div id="resultBody"></div>
     <div class="btn-row">
-      <button id="zipBtn" class="primary">ZIP download</button>
-      <button id="deleteBtn" class="danger">GitHub se delete</button>
+      <button id="zipBtn" class="primary">Download ZIP</button>
+      <button id="deleteBtn" class="danger">Delete from GitHub</button>
     </div>
-    <div id="deleteNote" class="note">Download ke baad delete kar dena â€” release public hoti hai.</div>
+    <div id="deleteNote" class="note">Delete after downloading &mdash; the release is public.</div>
   </section>
 
-  <footer>Static page Â· GitHub Pages. Koi paid server nahi.</footer>
+  <footer>Static page &middot; GitHub Pages. No paid server.</footer>
 
 <script>
 (() => {
@@ -272,7 +289,7 @@
   function show(id, on = true) { $(id).classList.toggle('hidden', !on); }
   function setBusy(on, label) {
     $('go').disabled = on;
-    $('go').innerHTML = on ? `<span class="spin"></span> ${label || 'Chal raha haiâ€¦'}` : 'Render shuru karo';
+    $('go').innerHTML = on ? `<span class="spin"></span> ${label || 'Working&hellip;'}` : 'Start render';
   }
 
   // ---------- config ----------
@@ -295,12 +312,12 @@
     state.token = $('token').value.trim();
     store.set('repo', state.repo);
     store.set('token', state.token);
-    note('cfgNote', state.repo ? `Saved. Repo: <code>${escapeHtml(state.repo)}</code>` : 'Repo bharo.', state.repo ? 'note ok' : 'note bad');
+    note('cfgNote', state.repo ? `Saved. Repo: <code>${escapeHtml(state.repo)}</code>` : 'Fill in the repo.', state.repo ? 'note ok' : 'note bad');
   }
 
   function ready() {
-    if (!state.repo || !/^[\w.-]+\/[\w.-]+$/.test(state.repo)) throw new Error('Repo owner/name format me likho (Settings me).');
-    if (!state.token) throw new Error('Token daalo (Settings me).');
+    if (!state.repo || !/^[\w.-]+\/[\w.-]+$/.test(state.repo)) throw new Error('Write the repo as owner/name (in Setup).');
+    if (!state.token) throw new Error('Add a token (in Setup).');
   }
 
   function escapeHtml(s) {
@@ -332,10 +349,10 @@
   }
 
   function apiError(err) {
-    if (err.status === 401) return 'Token galat ya expire ho gaya. Naya fine-grained token banao.';
-    if (err.status === 403) return `Permission nahi mila (${escapeHtml(err.message)}). Token me Actions: write + Contents: read/write hona chahiye.`;
-    if (err.status === 404) return 'Repo ya cheez nahi mili. Repo naam aur token repo access check karo.';
-    if (err.status === 422) return `GitHub ne reject kiya: ${escapeHtml(err.message)}`;
+    if (err.status === 401) return 'The token is wrong or expired. Create a new fine-grained token.';
+    if (err.status === 403) return `Permission denied (${escapeHtml(err.message)}). The token needs Actions: write + Contents: read/write.`;
+    if (err.status === 404) return 'Not found. Check the repo name and that the token can access it.';
+    if (err.status === 422) return `GitHub rejected the request: ${escapeHtml(err.message)}`;
     return escapeHtml(err.message || String(err));
   }
 
@@ -343,22 +360,22 @@
     try {
       saveCfg();
       ready();
-      note('cfgNote', 'Check kar raha hoonâ€¦', 'note');
+      note('cfgNote', 'Checking&hellip;', 'note');
       const repo = await api(`/repos/${state.repo}`);
       const perms = repo.permissions || {};
       const can = [];
       if (perms.push || perms.admin) can.push('contents write');
       if (repo.private) {
-        banner(`<b>${escapeHtml(repo.full_name)}</b> private hai. Free Actions 2000 min/mahina hi milenge aur clips direct preview nahi honge. Public repo recommended.`, 'warn');
+        banner(`<b>${escapeHtml(repo.full_name)}</b> is private. Free Actions gives only 2000 min/month and clips will not preview directly. A public repo is recommended.`, 'warn');
       } else {
         banner('');
       }
-      note('cfgNote', `âœ… <b>${escapeHtml(repo.full_name)}</b> mil gaya Â· default branch <code>${escapeHtml(repo.default_branch)}</code>${can.length ? '' : ' Â· âš ï¸ contents write permission nahi dikh raha'}`, 'note ok');
+      note('cfgNote', `&#10003; <b>${escapeHtml(repo.full_name)}</b> found &middot; default branch <code>${escapeHtml(repo.default_branch)}</code>${can.length ? '' : ' &middot; &#9888; contents write permission not visible'}`, 'note ok');
       state.branch = repo.default_branch;
       store.set('branch', repo.default_branch);
     } catch (err) {
       banner(apiError(err), 'bad');
-      note('cfgNote', 'Connection fail.', 'note bad');
+      note('cfgNote', 'Connection failed.', 'note bad');
     }
   }
 
@@ -380,8 +397,8 @@
           reject(new Error(`upload ${xhr.status}: ${String(xhr.responseText || '').slice(0, 140)}`));
         }
       };
-      xhr.onerror = () => reject(new Error('network error â€” internet check karo'));
-      xhr.ontimeout = () => reject(new Error('upload timeout â€” dobara try karo'));
+      xhr.onerror = () => reject(new Error('network error - check your internet'));
+      xhr.ontimeout = () => reject(new Error('upload timed out - try again'));
       xhr.send(fd);
     });
   }
@@ -392,10 +409,10 @@
     state.fileName = file.name;
     state.fileSize = file.size;
     state.sourceUrl = '';
-    note('fileHint', `${escapeHtml(file.name)} Â· ${fmtBytes(file.size)}`, 'note');
+    note('fileHint', `${escapeHtml(file.name)} &middot; ${fmtBytes(file.size)}`, 'note');
     $('upBar').classList.add('hidden');
     if (file.size > 100 * 1024 * 1024) {
-      note('upNote', 'Ye file 100 MB se badi hai â€” tmpfiles par upload nahi hoga. "Link paste karo" tab se direct URL do.', 'note bad');
+      note('upNote', 'This file is larger than 100 MB, so it cannot go to tmpfiles. Use the "Paste a link" tab with a direct URL instead.', 'note bad');
       return;
     }
     await startUpload(file);
@@ -410,20 +427,20 @@
     const t0 = Date.now();
     try {
       if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
-      note('upNote', 'Upload ho raha haiâ€¦ 0%', 'note');
+      note('upNote', 'Uploading&hellip; 0%', 'note');
       const url = await uploadFile(file, (frac, loaded) => {
         bar.style.width = `${Math.round(frac * 100)}%`;
         const secs = (Date.now() - t0) / 1000;
         const speed = secs > 1 ? loaded / secs : 0;
         const left = speed > 0 ? (file.size - loaded) / speed : 0;
-        note('upNote', `Upload ${Math.round(frac * 100)}% Â· ${fmtBytes(loaded)}/${fmtBytes(file.size)}${left > 1 ? ` Â· ~${fmtTime(left)} bacha` : ''}`, 'note');
+        note('upNote', `Upload ${Math.round(frac * 100)}% &middot; ${fmtBytes(loaded)}/${fmtBytes(file.size)}${left > 1 ? ` &middot; ~${fmtTime(left)} left` : ''}`, 'note');
       });
       state.sourceUrl = url;
       bar.style.width = '100%';
-      note('upNote', `âœ… Upload ho gaya. Render dabao. (Link 24 ghante tak zinda)`, 'note ok');
+      note('upNote', `&#10003; Uploaded. Press Start render. (The link stays alive for 24 hours.)`, 'note ok');
     } catch (err) {
       bar.style.width = '0';
-      note('upNote', `Upload fail: ${escapeHtml(err.message)}. Link tab try karo ya dobara bhejo.`, 'note bad');
+      note('upNote', `Upload failed: ${escapeHtml(err.message)}. Try the link tab or send the file again.`, 'note bad');
     } finally {
       state.uploading = false;
       $('go').disabled = false;
@@ -435,12 +452,14 @@
   function inputs() {
     return {
       source_url: state.sourceUrl,
+      mode: $('mode').value,
       count: $('count').value,
       template: $('template').value,
       look: $('look').value,
       music: $('music').value,
       title: $('title').value.trim(),
       broll: $('broll').value,
+      fps: $('fps').value,
       // Only a link-based source can have a release tag (PC upload path).
       source_release_tag: $('tabLink').classList.contains('on') ? $('sourceTag').value.trim() : '',
     };
@@ -474,7 +493,7 @@
       );
       if (hit) return hit;
     }
-    throw new Error('dispatch chala par run nahi mila â€” Actions tab dekho.');
+    throw new Error('Dispatch sent but no run appeared - check the Actions tab.');
   }
 
   function saveRun(run) {
@@ -495,11 +514,11 @@
   function stopTicker() { if (state.ticker) clearInterval(state.ticker); state.ticker = 0; }
 
   function runStateLabel(r) {
-    if (!r) return 'â€”';
+    if (!r) return '&mdash;';
     if (r.status === 'completed') {
       return { success: 'done', failure: 'failed', cancelled: 'cancelled', skipped: 'skipped' }[r.conclusion] || r.conclusion || 'done';
     }
-    return { queued: 'queue', in_progress: 'rendering', waiting: 'waiting', requested: 'starting', pending: 'pending' }[r.status] || r.status;
+    return { queued: 'queued', in_progress: 'rendering', waiting: 'waiting', requested: 'starting', pending: 'pending' }[r.status] || r.status;
   }
 
   async function pollRun() {
@@ -509,14 +528,14 @@
       r = await api(`/repos/${state.run.repo || state.repo}/actions/runs/${state.run.id}`);
     } catch (err) {
       // Phone networks drop; keep the lock but keep trying.
-      note('goNote', `Status nahi mila (${apiError(err)}). Dobara try kar raha hoonâ€¦`, 'note warn');
+      note('goNote', `Could not fetch status (${apiError(err)}). Retrying&hellip;`, 'note warn');
       setTimeout(pollRun, 12000);
       return;
     }
     saveRun(r);
     renderRun(r);
     if (r.status !== 'completed') {
-      setBusy(true, r.status === 'queued' ? 'Queue me haiâ€¦' : 'Render chal raha haiâ€¦');
+      setBusy(true, r.status === 'queued' ? 'Queued&hellip;' : 'Rendering&hellip;');
       startTicker();
       // Long renders: stop hammering the API (and the battery) every 6 s.
       const elapsed = Date.now() - new Date(r.created_at).getTime();
@@ -529,7 +548,7 @@
       note('goNote', '', 'note');
       await loadResult(r).catch((err) => banner(apiError(err), 'bad'));
     } else {
-      note('goNote', `Run ${r.conclusion}. <a href="${r.html_url}" target="_blank" rel="noopener">Log kholo â†—</a> â€” Groq key, source link ya permissions me dikkat ho sakti hai.`, 'note bad');
+      note('goNote', `Run ${r.conclusion}. <a href="${r.html_url}" target="_blank" rel="noopener">Open the log &nearr;</a> - check the Groq key, the source link, or permissions. For YouTube links: the video must be public (no login wall).`, 'note bad');
       show('resultCard', false);
     }
   }
@@ -537,12 +556,12 @@
   function renderRun(r) {
     show('runCard', true);
     $('runTitle').textContent = `Render #${r.run_number}`;
-    $('runState').textContent = runStateLabel(r);
+    $('runState').innerHTML = runStateLabel(r);
     const busy = r.status !== 'completed';
     $('runBody').innerHTML = `
       <div class="pill" style="margin-top:12px">
         <span class="dot ${r.status === 'completed' ? (r.conclusion === 'success' ? 'ok' : 'bad') : 'warn'}"></span>
-        ${busy ? 'GitHub par chal raha hai â€” is page ko band kar sakte ho, wapas aake dekho.' : `Khatam: ${escapeHtml(r.conclusion || '')}`}
+        ${busy ? 'Running on GitHub - you can close this page and come back later.' : `Finished: ${escapeHtml(r.conclusion || '')}`}
       </div>`;
     $('openRun').onclick = () => window.open(r.html_url, '_blank', 'noopener');
   }
@@ -550,7 +569,7 @@
   // ---------- results ----------
   async function loadResult(run) {
     show('resultCard', true);
-    $('resultBody').innerHTML = `<p class="note"><span class="spin"></span> clips dhoond raha hoonâ€¦</p>`;
+    $('resultBody').innerHTML = `<p class="note"><span class="spin"></span> looking for clips&hellip;</p>`;
     let rel = null;
     for (let i = 0; i < 6 && !rel; i++) {
       rel = await api(`/repos/${state.repo}/releases/tags/render-${run.run_number}`).catch((e) => {
@@ -562,7 +581,7 @@
     if (!rel) {
       saveRun(null);
       show('resultCard', false);
-      note('goNote', 'Release nahi mili (delete ho gayi hogi ya render fail hua). Actions log dekho.', 'note warn');
+      note('goNote', 'Release not found (already deleted, or the render failed). Check the Actions log.', 'note warn');
       return;
     }
     state.release = rel;
@@ -592,7 +611,7 @@
               ${thumb ? `<img src="${thumb.browser_download_url}" alt="" loading="lazy">` : '<img alt="">'}
               <div class="clip-meta">
                 <b>${escapeHtml(a.name)}</b>
-                <p>${m.duration ? `${m.duration}s` : ''}${m.visuals ? ` Â· ${m.visuals} visual${m.visuals === 1 ? '' : 's'}` : ''}${m.hook ? ` Â· ${escapeHtml(m.hook)}` : ''}</p>
+                <p>${m.duration ? `${m.duration}s` : ''}${m.visuals ? ` &middot; ${m.visuals} visual${m.visuals === 1 ? '' : 's'}` : ''}${m.hook ? ` &middot; ${escapeHtml(m.hook)}` : ''}</p>
                 <p>${fmtBytes(a.size)}</p>
               </div>
             </div>
@@ -606,8 +625,8 @@
       .join('');
 
     $('resultBody').innerHTML = `
-      <p class="note ok">${assets.filter((a) => /\.mp4$/i.test(a.name)).length} clip ready${meta?.title ? ` Â· ${escapeHtml(meta.title)}` : ''}.</p>
-      ${rows || '<p class="note bad">Koi mp4 asset nahi mila.</p>'}`;
+      <p class="note ok">${assets.filter((a) => /\.mp4$/i.test(a.name)).length} clips ready${meta?.title ? ` &middot; ${escapeHtml(meta.title)}` : ''}.</p>
+      ${rows || '<p class="note bad">No mp4 assets found.</p>'}`;
 
     $('resultBody').querySelectorAll('[data-preview]').forEach((btn) => {
       btn.onclick = () => {
@@ -619,24 +638,24 @@
     $('resultBody').querySelectorAll('[data-dl]').forEach((btn) => {
       btn.onclick = () => {
         window.open(btn.dataset.dl, '_blank', 'noopener');
-        note('deleteNote', 'Download shuru. Sab save hone ke baad "GitHub se delete" dabao.', 'note warn');
+        note('deleteNote', 'Download started. Once everything is saved, press "Delete from GitHub".', 'note warn');
       };
     });
 
     const zip = zips[0];
     $('zipBtn').onclick = () => {
-      if (!zip) return note('deleteNote', 'ZIP asset nahi mila â€” clips alag alag download karo.', 'note bad');
+      if (!zip) return note('deleteNote', 'No ZIP asset - download the clips one by one.', 'note bad');
       window.open(zip.browser_download_url, '_blank', 'noopener');
-      note('deleteNote', 'Download shuru. Sab save hone ke baad "GitHub se delete" dabao.', 'note warn');
+      note('deleteNote', 'Download started. Once everything is saved, press "Delete from GitHub".', 'note warn');
     };
     $('zipBtn').classList.toggle('hidden', !zip);
 
     $('deleteBtn').onclick = () => deleteRelease(rel);
-    note('deleteNote', 'Download ke baad delete kar dena â€” release public hoti hai.', 'note');
+    note('deleteNote', 'Delete after downloading - the release is public.', 'note');
   }
 
   async function deleteRelease(rel) {
-    if (!confirm(`Release ${rel.tag_name} aur uske saare clips GitHub se delete kar dun?`)) return;
+    if (!confirm(`Delete release ${rel.tag_name} and all of its clips from GitHub?`)) return;
     $('deleteBtn').disabled = true;
     try {
       await api(`/repos/${state.repo}/releases/${rel.id}`, { method: 'DELETE' });
@@ -644,7 +663,7 @@
       state.release = null;
       saveRun(null);
       show('resultCard', false);
-      banner(`âœ… ${escapeHtml(rel.tag_name)} delete ho gayi.`, 'ok');
+      banner(`&#10003; ${escapeHtml(rel.tag_name)} deleted.`, 'ok');
       note('goNote', '');
     } catch (err) {
       banner(apiError(err), 'bad');
@@ -660,24 +679,24 @@
       saveCfg();
       ready();
       if (!state.sourceUrl) {
-        if ($('paneLink').classList.contains('hidden')) throw new Error('Pehle video upload karo ya link paste karo.');
+        if ($('paneLink').classList.contains('hidden')) throw new Error('First upload a video or paste a link.');
         state.sourceUrl = $('link').value.trim();
-        if (!/^https?:\/\//.test(state.sourceUrl)) throw new Error('Link https:// se shuru hona chahiye.');
+        if (!/^https?:\/\//.test(state.sourceUrl)) throw new Error('The link must start with https://');
       }
       if (!store.get('branch', '')) await testConnection();
-      if (!store.get('branch', '')) throw new Error('Default branch nahi mila â€” Test connection dabao.');
+      if (!store.get('branch', '')) throw new Error('Default branch unknown - press Test connection.');
 
-      setBusy(true, 'Dispatchâ€¦');
-      note('goNote', 'Purane render check kar raha hoonâ€¦');
+      setBusy(true, 'Dispatching&hellip;');
+      note('goNote', 'Checking for an older render&hellip;');
       const busy = await busyRun();
-      if (busy) throw new Error(`Ek render pehle se chal raha hai (#${busy.run_number}). Uske khatam hone ka wait karo.`);
+      if (busy) throw new Error(`A render is already running (#${busy.run_number}). Wait for it to finish.`);
 
-      note('goNote', 'GitHub par bhej raha hoonâ€¦');
+      note('goNote', 'Sending to GitHub&hellip;');
       const run = await dispatch();
       saveRun(run);
       show('resultCard', false);
       renderRun(run);
-      note('goNote', 'Chal gaya. Page band kar sakte ho â€” wapas aake status dekhna.');
+      note('goNote', 'Started. You can close the page - come back later for the status.');
       pollRun();
     } catch (err) {
       setBusy(false);
@@ -693,11 +712,11 @@
   $('saveCfg').onclick = () => { try { saveCfg(); } catch (e) { banner(escapeHtml(e.message), 'bad'); } };
   $('testCfg').onclick = testConnection;
   $('forgetCfg').onclick = () => {
-    if (!confirm('Repo aur token is phone se hata dun?')) return;
+    if (!confirm('Remove the repo and token from this phone?')) return;
     store.set('repo', null); store.set('token', null); store.set('branch', null);
     state.repo = ''; state.token = '';
     $('repo').value = guessRepo(); $('token').value = '';
-    note('cfgNote', 'Hata diya.', 'note');
+    note('cfgNote', 'Removed.', 'note');
   };
 
   $('tabUpload').onclick = () => {
@@ -709,6 +728,18 @@
     show('paneLink', true); show('paneUpload', false);
   };
   $('link').oninput = () => { state.sourceUrl = $('link').value.trim(); };
+
+  // Gaming mode flips the sensible defaults: the game itself is the b-roll and
+  // a music bed fights the gameplay audio. The user can still override both.
+  $('mode').onchange = () => {
+    const gaming = $('mode').value === 'gaming';
+    $('music').value = gaming ? 'none' : 'auto';
+    $('broll').value = gaming ? 'off' : 'on';
+    note('modeNote', gaming
+      ? 'Gaming: picks the loudest action (kills, explosions, reactions), keeps the whole frame with the facecam and HUD, punch-ins on the peaks, no music or b-roll. Captions appear only if real commentary is detected.'
+      : 'Talk mode: finds the best spoken moments and adds topic b-roll inserts.',
+      'note');
+  };
 
   $('file').onchange = pickFile;
 
@@ -722,19 +753,18 @@
     api(`/repos/${state.run.repo || state.repo}/actions/runs/${state.run.id}`)
       .then((r) => {
         renderRun(r);
-        if (r.status !== 'completed') { setBusy(true, 'Pichla render chal raha haiâ€¦'); pollRun(); }
+        if (r.status !== 'completed') { setBusy(true, 'Previous render still running&hellip;'); pollRun(); }
         else if (r.conclusion === 'success') loadResult(r).catch((err) => banner(apiError(err), 'bad'));
-        else { renderRun(r); note('goNote', `Pichla run ${r.conclusion}.`, 'note bad'); }
+        else { renderRun(r); note('goNote', `Previous run ${r.conclusion}.`, 'note bad'); }
       })
       .catch(() => {});
   }
 
   // Warn if the tab is hidden mid-upload (mobile browsers may freeze it).
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && state.uploading) note('upNote', 'Tab background me hai â€” upload ruk sakta hai. Wapas aao.', 'note warn');
+    if (document.hidden && state.uploading) note('upNote', 'The tab went to the background - the upload may pause. Come back to this screen.', 'note warn');
   });
 })();
 </script>
 </body>
 </html>
-

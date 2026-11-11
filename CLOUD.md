@@ -52,14 +52,35 @@ tmpfiles.org for the phone upload (100 MB, 24 h auto-delete).
 1. Open `https://<you>.github.io/clipforge/`.
 2. Save repo + token once, press **Test connection**.
 3. Pick the video (≤ 100 MB) → it uploads to tmpfiles with a progress bar.
-   Bigger files: use **Link paste karo** with a direct URL (see below).
-4. Choose clips / captions / look / music → **Render shuru karo**.
-5. Wait ~8–15 min (CPU x264; a 40-min podcast takes longer). You can close the
+   Bigger files: use **Paste a link** with a direct URL (see below).
+4. Pick a **Mode**:
+   - **Podcast / talk** — speech-driven highlights, b-roll inserts, music bed.
+   - **Gaming** — audio-peak action highlights: keeps the whole frame (facecam
+     + HUD) over a blur bed, punch-ins on the loudest peaks, music and b-roll
+     off by default. Captions are added only when real commentary is detected;
+     pure gameplay gets none. Works with facecam + commentary and with
+     voice-over-only gameplay alike.
+5. Choose clips / captions / look / frame rate (30 fast, 60 smooth) →
+   **Start render**.
+6. Wait ~8–15 min (CPU x264; a 40-min podcast takes longer). You can close the
    page — reopen it and the run is still tracked.
-6. Download the ZIP (or clips one by one), then **GitHub se delete**.
+7. Download the ZIP (or clips one by one), then **Delete from GitHub**.
 
 Deleting removes the release and its tag, so the clips stop being public. The
 tmpfiles copy of the source expires on its own within 24 h.
+
+## Rendering straight from a YouTube / TikTok / Twitch link
+
+Paste the link in **Paste a link** — no upload needed. The runner installs
+[pinned yt-dlp](https://github.com/yt-dlp/yt-dlp/releases) and downloads
+(`--no-playlist`, up to 1080p; bigger videos drop to 720p/480p automatically).
+
+- Only **public** videos work. Private, members-only, age-gated or
+  login-walled videos are refused with a clear error — fall back to
+  uploading the file from the phone.
+- YouTube throttles datacenter IPs; the download retries, but if Google's bot
+  check blocks the runner, use the upload path.
+- The same works from the PC via `scripts/fetch-source.mjs` directly.
 
 ## Bigger than 100 MB
 
@@ -81,9 +102,12 @@ node scripts/cloud-render.mjs --src .\video.mp4 --out out --count 4 --title "Bil
 ```
 
 Writes `out/clip-NN.mp4`, `out/clip-NN.jpg`, `out/manifest.json`, `out/log.txt`.
-`--broll off`, `--music none`, `--look none`, `--template pop|karaoke|box|neon`
-are there for quick drafts. `CF_QUIET=1` keeps transcript-derived text out of
-the logs (the workflow sets it, because the repo is public).
+Useful flags: `--mode podcast|gaming`, `--broll off`, `--music none`,
+`--look none`, `--template pop|karaoke|box|neon`, `--max-fps 30|60`
+(output fps follows the source but never above the cap), `--captions auto|on|off`
+(gaming only: `auto` drops captions when the speech looks sparse or garbled).
+`CF_QUIET=1` keeps transcript-derived text out of the logs (the workflow sets
+it, because the repo is public).
 
 To test the whole cloud round-trip from the PC (dispatch → poll → download →
 delete), without touching the phone:

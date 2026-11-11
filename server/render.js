@@ -118,6 +118,7 @@ export async function renderClip({
   srcW = 1920, srcH = 1080, hasAudio = true, cuts = [], preview = false, edits = {},
   look = 'none', musicPath = null, musicBpm = 0, musicGain = 0.22, musicPulse = true,
   broll = null,
+  punchIns = null, showBar = true,
   onProgress, onLog, retried = false,
 }) {
   const enc = await videoEncoder();
@@ -347,9 +348,29 @@ export async function renderClip({
     }
   }
 
+  // Action punch-in (gaming): a quick zoom pulse that fires exactly on each
+  // audio peak — the impact frame lands at max zoom and decays in ~1 s. Built
+  // as a sum of decaying exponentials over `on/FPS`, capped so overlapping
+  // pulses cannot run away. Applied to the whole composite (blur bed included);
+  // captions are added later and never jump.
+  const pulses = (Array.isArray(punchIns) ? punchIns : [])
+    .filter((p) => p && Number.isFinite(p.t) && p.t >= -0.3 && p.t <= dur)
+    .slice(0, 4);
+  if (pulses.length && (mode === 'blur' || mode === 'center')) {
+    const AMP = 0.14;
+    const K = 4.5;
+    const t = (p) => Math.max(0, p.t).toFixed(2);
+    const expr = pulses
+      .map((p) => `if(gte(on/${FPS},${t(p)}),${AMP.toFixed(3)}*exp(-${K}*(on/${FPS}-${t(p)})),0)`)
+      .join('+');
+    graph += `[${vLast}]zoompan=z='1+min(${AMP.toFixed(2)},${expr})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=${outW}x${outH}:fps=${FPS}[vpunch];`;
+    vLast = 'vpunch';
+    onLog?.(`punch-in on ${pulses.length} audio peak(s)`);
+  }
+
   const ass = buildCaptions({
     words: capWords, start: capStart, end: capEnd, duration: dur, template, position, size, accent, title,
-    outW: outW, outH: outH, hookTop, edits, lookStyle,
+    outW: outW, outH: outH, hookTop, edits, lookStyle, showBar,
     cards: cards.length ? { frame: { x: xPx, y: yPx, w: fgW, h: fgH } } : null,
     cardWindows: cards,
   });
@@ -450,7 +471,7 @@ export async function renderClip({
       return renderClip({
         id, source, start, end, crop, template, position, size, accent, title, zoom,
         punch, words, subject, srcW, srcH, hasAudio, cuts, preview, edits, look,
-        musicPath, musicBpm, musicGain, musicPulse, broll,
+        musicPath, musicBpm, musicGain, musicPulse, broll, punchIns, showBar,
         onProgress, onLog, retried: true,
       });
     }
@@ -460,7 +481,7 @@ export async function renderClip({
     return renderClip({
       id, source, start, end, crop: next, template, position, size, accent, title, zoom,
       punch: 1, words, subject: next === 'blur' ? null : subject, srcW, srcH, hasAudio, cuts, preview, edits, look,
-      musicPath, musicBpm, musicGain, musicPulse, broll,
+      musicPath, musicBpm, musicGain, musicPulse, broll, punchIns, showBar,
       onProgress, onLog,
     });
   }
