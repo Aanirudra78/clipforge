@@ -113,51 +113,77 @@ async function downloadWithYtDlp(bin, url, out) {
   const tries = MAX_HEIGHT
     ? [{ h: MAX_HEIGHT, size: 1500 }]
     : [{ h: 1080, size: 1500 }, { h: 720, size: 700 }, { h: 480, size: 500 }];
+  // YouTube flags datacenter IPs (CI runners) with bot checks on the default
+  // web player. These clients still serve media without login - tried in order
+  // when the default attempt is blocked. `--js-runtimes node` lets yt-dlp run
+  // its player challenge with the Node the runner already has installed.
+  const CLIENTS = [
+    { name: 'default', args: ['--js-runtimes', 'node'] },
+    { name: 'tv', args: ['--js-runtimes', 'node', '--extractor-args', 'youtube:player_client=tv'] },
+    { name: 'android_vr', args: ['--js-runtimes', 'node', '--extractor-args', 'youtube:player_client=android_vr'] },
+    { name: 'android', args: ['--js-runtimes', 'node', '--extractor-args', 'youtube:player_client=android'] },
+  ];
+  const BOT = /sign in to confirm|not a bot|HTTP Error 403|video data: HTTP 403|member|private video/i;
+
   for (const t of tries) {
-    try {
-      log(`yt-dlp: trying height<=${t.h}`);
-      await new Promise((resolve, reject) => {
-        const p = spawn(bin, [
-          '--no-playlist', '--no-mtime',
-          '--merge-output-format', 'mp4',
-          '--ffmpeg-location', FF_BIN,
-          '-f', `bv*[height<=${t.h}]+ba/b[height<=${t.h}]/b`,
-          '--max-filesize', `${t.size}M`,
-          '--retries', '4', '--fragment-retries', '10',
-          '-o', out, url,
-        ], { windowsHide: true });
-        let err = '';
-        p.stderr.on('data', (d) => {
-          const s = d.toString();
-          if (err.length < 4000) err += s;
-          process.stderr.write(s);
-        });
-        p.stdout.on('data', (d) => process.stdout.write(d));
-        p.on('error', reject);
-        p.on('close', (code) => {
-          if (code !== 0) {
-            if (/larger than max-filesize/i.test(err)) return reject(new Error(`TOOBIG:${t.h}`));
-            if (/sign in to confirm|not a bot|cookies|private video|members-only/i.test(err)) {
-              return reject(new Error(`the site blocked this downloader (bot check / login needed). Upload the video from your phone instead, or use a direct mp4 link. ${err.slice(-300)}`));
+    for (const client of CLIENTS) {
+      try {
+        log(`yt-dlp: trying height<=${t.h} (client: ${client.name})`);
+        await new Promise((resolve, reject) => {
+          const p = spawn(bin, [
+            '--no-playlist', '--no-mtime',
+            '--merge-output-format', 'mp4',
+            '--ffmpeg-location', FF_BIN,
+            '-f', `bv*[height<=${t.h}]+ba/b[height<=${t.h}]/b`,
+            '--max-filesize', `${t.size}M`,
+            '--retries', '4', '--fragment-retries', '10',
+            ...client.args,
+            '-o', out, url,
+          ], { windowsHide: true });
+          let err = '';
+          p.stderr.on('data', (d) => {
+            const s = d.toString();
+            if (err.length < 4000) err += s;
+            process.stderr.write(s);
+          });
+          p.stdout.on('data', (d) => process.stdout.write(d));
+          p.on('error', reject);
+          p.on('close', (code) => {
+            if (code !== 0) {
+              if (/larger than max-filesize/i.test(err)) return reject(new Error(`TOOBIG:${t.h}`));
+              if (BOT.test(err)) {
+                return reject(new Error(`BOTCHECK:${client.name} the site blocked this downloader (bot check / login needed). ${err.slice(-200)}`));
+              }
+              if (/private video|members-only/i.test(err)) {
+                return reject(new Error('BOTCHECK:final this video is private or members-only; only public videos can be downloaded. Upload the file from your phone instead.'));
+              }
+              return reject(new Error(`yt-dlp exited ${code}: ${err.slice(-400)}`));
             }
-            return reject(new Error(`yt-dlp exited ${code}: ${err.slice(-400)}`));
-          }
-          consolidateOutput(out)
-            .then((ok) => (ok ? resolve() : reject(new Error('yt-dlp produced no video file'))))
-            .catch(reject);
+            consolidateOutput(out)
+              .then((ok) => (ok ? resolve() : reject(new Error('yt-dlp produced no video file'))))
+              .catch(reject);
+          });
         });
-      });
-      return out;
-    } catch (err) {
-      const msg = String(err.message || err);
-      lastErr = err;
-      if (msg.startsWith('TOOBIG:')) { log(`too big for ${msg.slice(7)}p cap, dropping quality`); continue; }
-      if (/blocked this downloader/i.test(msg)) throw err; // no point retrying other heights
-      log(`yt-dlp attempt failed: ${msg.slice(0, 200)}`);
-      continue;
+        return out;
+      } catch (err) {
+        const msg = String(err.message || err);
+        lastErr = err;
+        if (msg.startsWith('TOOBIG:')) { log(`too big for ${msg.slice(7)}p cap, dropping quality`); break; } // next height
+        if (msg.startsWith('BOTCHECK:')) {
+          const who = msg.slice(9, msg.indexOf(' ', 9) || undefined);
+          if (who === 'final') throw new Error(msg.slice(msg.indexOf(' ') + 1));
+          log(`${client.name} client is bot-blocked, trying the next player client`);
+          continue; // next client, same height
+        }
+        log(`yt-dlp attempt failed: ${msg.slice(0, 200)}`);
+        continue;
+      }
     }
   }
-  throw lastErr || new Error('yt-dlp failed');
+  const bot = lastErr && String(lastErr.message).includes('BOTCHECK');
+  throw bot
+    ? new Error('YouTube is blocking this runner for every player client (bot check). Upload the video from your phone instead, or paste a direct mp4 link.')
+    : (lastErr || new Error('yt-dlp failed'));
 }
 
 async function resolveTmpfiles(url) {
