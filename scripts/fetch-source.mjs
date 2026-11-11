@@ -63,6 +63,21 @@ function findYtDlp() {
 const FF_BIN = process.env.FFMPEG_PATH || 'ffmpeg';
 
 /**
+ * Optional YouTube cookies (repo secret YTDLP_COOKIES, netscape format).
+ * Google demands login cookies from datacenter IPs - player-client tricks no
+ * longer bypass the bot check. The file lives on the ephemeral runner disk
+ * only, and is deleted right after the download.
+ */
+async function cookieArgs(out) {
+  const raw = process.env.YTDLP_COOKIES || '';
+  if (!raw.trim()) return [];
+  const file = path.join(path.dirname(out), 'yt-cookies.txt');
+  await fs.promises.writeFile(file, raw.endsWith('\n') ? raw : `${raw}\n`);
+  log('using YouTube cookies from the YTDLP_COOKIES secret');
+  return ['--cookies', file, '--no-cookies-from-browser'];
+}
+
+/**
  * yt-dlp leaves `name.f###.mp4` + `name.f###.m4a` behind when its internal
  * merge cannot run. Consolidate those into `out` ourselves so the render step
  * always sees one file.
@@ -126,6 +141,7 @@ async function downloadWithYtDlp(bin, url, out) {
   const BOT = /sign in to confirm|not a bot|HTTP Error 403|video data: HTTP 403|member|private video/i;
 
   for (const t of tries) {
+    const cookieArgsList = await cookieArgs(out);
     for (const client of CLIENTS) {
       try {
         log(`yt-dlp: trying height<=${t.h} (client: ${client.name})`);
@@ -137,6 +153,7 @@ async function downloadWithYtDlp(bin, url, out) {
             '-f', `bv*[height<=${t.h}]+ba/b[height<=${t.h}]/b`,
             '--max-filesize', `${t.size}M`,
             '--retries', '4', '--fragment-retries', '10',
+            ...cookieArgsList,
             ...client.args,
             '-o', out, url,
           ], { windowsHide: true });
@@ -253,6 +270,8 @@ try {
       log(`video site link: ${URL_IN.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
       await downloadWithYtDlp(bin, URL_IN, OUT);
       ytdlpHit = true;
+      // never leave the cookie file lying around
+      try { fs.rmSync(path.join(path.dirname(OUT), 'yt-cookies.txt'), { force: true }); } catch {}
     } else {
       throw new Error('video-site link (YouTube etc.) needs yt-dlp, which is not installed on this runner. Upload the video from your phone or paste a direct mp4 link.');
     }

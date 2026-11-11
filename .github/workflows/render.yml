@@ -129,6 +129,10 @@ jobs:
       - name: Download source
         env:
           SOURCE_URL: ${{ inputs.source_url }}
+          # Optional: netscape-format YouTube cookies. Google demands them for
+          # datacenter IPs (the runner) - without them public videos fail with
+          # "Sign in to confirm you're not a bot".
+          YTDLP_COOKIES: ${{ secrets.YTDLP_COOKIES }}
         run: |
           node scripts/fetch-source.mjs --url "$SOURCE_URL" --out source.mp4
           du -h source.mp4

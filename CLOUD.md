@@ -78,8 +78,14 @@ Paste the link in **Paste a link** — no upload needed. The runner installs
 - Only **public** videos work. Private, members-only, age-gated or
   login-walled videos are refused with a clear error — fall back to
   uploading the file from the phone.
-- YouTube throttles datacenter IPs; the download retries, but if Google's bot
-  check blocks the runner, use the upload path.
+- **YouTube blocks cloud IPs**: Google's bot check ("Sign in to confirm you're
+  not a bot") refuses every download from GitHub's datacenter addresses. The
+  runner retries through several player clients automatically, but if that
+  still fails, set a **repo secret `YTDLP_COOKIES`** with netscape-format
+  cookies from a logged-in YouTube browser (e.g. the "Get cookies.txt
+  LOCALLY" extension). With cookies present the download works like on a PC.
+  Prefer a throwaway Google account for this. Without cookies the reliable
+  path is uploading the file from the phone.
 - The same works from the PC via `scripts/fetch-source.mjs` directly.
 
 ## Bigger than 100 MB
