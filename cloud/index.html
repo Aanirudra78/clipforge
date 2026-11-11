@@ -132,11 +132,11 @@
     <div id="paneUpload">
       <label class="drop" for="file">
         <b>Choose a video</b>
-        <span id="fileHint">mp4 / mov &middot; max 100 MB</span>
+        <span id="fileHint">mp4 / mov &middot; up to 2 GB</span>
       </label>
       <input id="file" type="file" accept="video/*" class="hidden">
       <div class="bar hidden" id="upBar"><i></i></div>
-      <div id="upNote" class="note">The upload goes to tmpfiles.org and is deleted automatically after 24 hours. Keep this screen open until the upload finishes.</div>
+      <div id="upNote" class="note">Files up to 100 MB go to tmpfiles.org (auto-deleted in 24 h). Bigger files upload straight to your GitHub repo (release assets, up to 2 GB) and are deleted automatically after the render. Keep this screen open until the upload finishes.</div>
     </div>
     <div id="paneLink" class="hidden">
       <label for="link">Video link</label>
@@ -267,6 +267,7 @@
     fileName: '',
     fileSize: 0,
     sourceAt: 0,
+    sourceTag: '',
     uploading: false,
     run: store.get('run', null),
     release: null,
@@ -287,17 +288,18 @@
       const s = (Date.now() - state.sourceAt) / 1000;
       age = s < 3600 ? ` &middot; ${fmtTime(s)} ago` : ` &middot; ${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} m ago`;
     }
-    const expired = state.sourceAt && Date.now() - state.sourceAt > 23 * 3600 * 1000;
-    return `Ready: <b>${escapeHtml(name)}</b>${size}${age}${expired ? ' &middot; <span style="color:var(--bad)">link may be expired, upload again</span>' : ''}`;
+    const expired = state.sourceAt && Date.now() - state.sourceAt > 23 * 3600 * 1000 && !state.sourceTag;
+    return `Ready: <b>${escapeHtml(name)}</b>${size}${age}${state.sourceTag ? ' &middot; stored in your repo, auto-deleted after render' : ''}${expired ? ' &middot; <span style="color:var(--bad)">link may be expired, upload again</span>' : ''}`;
   }
   function showSrc() { note('srcState', srcLabel(), state.sourceUrl ? 'note ok' : 'note'); }
-  function setSource(url, { name = '', size = 0, at = Date.now(), persist = true } = {}) {
+  function setSource(url, { name = '', size = 0, at = Date.now(), tag = '', persist = true } = {}) {
     state.sourceUrl = url || '';
     state.fileName = name;
     state.fileSize = size;
     state.sourceAt = url ? at : 0;
+    state.sourceTag = url ? (tag || '') : '';
     if (persist) {
-      store.set('source', url ? { url, name, size, at } : null);
+      store.set('source', url ? { url, name, size, at, tag } : null);
     }
     showSrc();
   }
@@ -431,14 +433,46 @@
     });
   }
 
+  /** Raw octet-stream PUT-style upload, used for GitHub release assets. */
+  function uploadRaw(file, url, headers, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.timeout = 120 * 60 * 1000;
+      for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total, e.loaded); };
+      xhr.onload = () => {
+        let j = null;
+        try { j = JSON.parse(xhr.responseText); } catch {}
+        if (xhr.status >= 200 && xhr.status < 300 && j && j.url) resolve(j);
+        else reject(new Error(`upload ${xhr.status}: ${String(xhr.responseText || '').slice(0, 140)}`));
+      };
+      xhr.onerror = () => reject(new Error('network error during upload - check your internet'));
+      xhr.ontimeout = () => reject(new Error('upload timed out - try again'));
+      xhr.send(file);
+    });
+  }
+
+  const MB = 1024 * 1024;
+  const GB = 1024 * MB;
+
   async function pickFile() {
     const file = $('file').files[0];
     if (!file) return;
     note('fileHint', `${escapeHtml(file.name)} &middot; ${fmtBytes(file.size)}`, 'note');
     $('upBar').classList.add('hidden');
-    if (file.size > 100 * 1024 * 1024) {
-      setSource('', { persist: true });
-      note('upNote', 'This file is larger than 100 MB, so it cannot go to tmpfiles. Use the "Paste a link" tab with a direct URL instead.', 'note bad');
+    if (file.size > 2 * GB) {
+      note('upNote', 'Over 2 GB - GitHub release storage cannot take it. Trim the video or paste a direct link instead.', 'note bad');
+      return;
+    }
+    if (file.size > 100 * MB) {
+      // tmpfiles.org stops at 100 MB; bigger files go to a release in the repo
+      // (up to 2 GB). The workflow deletes that release after the render.
+      if (!state.repo || !state.token) {
+        note('upNote', 'Files over 100 MB upload to your GitHub repo - save the repo and token in Setup first.', 'note bad');
+        return;
+      }
+      await uploadBig(file);
       return;
     }
     await startUpload(file);
@@ -474,6 +508,64 @@
     }
   }
 
+  /**
+   * 100 MB - 2 GB: straight into a release in the user's repo. The token from
+   * Setup authorises it, GitHub allows 2 GiB per release asset, and the
+   * workflow's "Drop source release" step deletes it once the render ends -
+   * nothing extra to clean up by hand.
+   */
+  async function uploadBig(file) {
+    if (state.uploading) return;
+    state.uploading = true;
+    $('go').disabled = true;
+    $('upBar').classList.remove('hidden');
+    const bar = $('upBar').firstElementChild;
+    const t0 = Date.now();
+    let rel = null;
+    try {
+      if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
+      if (!store.get('branch', '')) await testConnection();
+      if (!store.get('branch', '')) throw new Error('default branch unknown - press Test connection in Setup');
+
+      note('upNote', 'Creating storage in your repo&hellip;', 'note');
+      const tag = `src-${Date.now()}`;
+      rel = await api(`/repos/${state.repo}/releases`, {
+        method: 'POST',
+        body: {
+          tag_name: tag,
+          name: `phone source ${new Date().toISOString().slice(0, 10)}`,
+          body: 'Uploaded from the phone. The render deletes this release automatically.',
+        },
+      });
+
+      note('upNote', 'Uploading to GitHub&hellip; 0%', 'note');
+      const uploadUrl = `${rel.upload_url.split('{')[0]}?name=${encodeURIComponent(file.name || 'source.mp4')}`;
+      const asset = await uploadRaw(uploadUrl, file, {
+        'content-type': 'application/octet-stream',
+        authorization: `Bearer ${state.token}`,
+      }, (frac, loaded) => {
+        bar.style.width = `${Math.round(frac * 100)}%`;
+        const secs = (Date.now() - t0) / 1000;
+        const speed = secs > 1 ? loaded / secs : 0;
+        const left = speed > 0 ? (file.size - loaded) / speed : 0;
+        note('upNote', `Upload ${Math.round(frac * 100)}% &middot; ${fmtBytes(loaded)}/${fmtBytes(file.size)}${left > 1 ? ` &middot; ~${fmtTime(left)} left` : ''}`, 'note');
+      });
+
+      setSource(asset.url, { name: file.name, size: file.size, tag });
+      bar.style.width = '100%';
+      note('upNote', '&#10003; Stored in your repo (release ' + escapeHtml(tag) + '). Press Start render - this release is deleted automatically after the render.', 'note ok');
+    } catch (err) {
+      bar.style.width = '0';
+      // do not leave an empty release behind on a failed upload
+      if (rel && rel.id) { api(`/repos/${state.repo}/releases/${rel.id}`, { method: 'DELETE' }).catch(() => {}); }
+      note('upNote', `Upload failed: ${escapeHtml(err.message)}. Try again, or use the link tab.`, 'note bad');
+    } finally {
+      state.uploading = false;
+      $('go').disabled = false;
+      if (wakeLock) { try { await wakeLock.release(); } catch {} wakeLock = null; }
+    }
+  }
+
   // ---------- dispatch / poll ----------
   function inputs() {
     return {
@@ -486,8 +578,10 @@
       title: $('title').value.trim(),
       broll: $('broll').value,
       fps: $('fps').value,
-      // Only a link-based source can have a release tag (PC upload path).
-      source_release_tag: $('tabLink').classList.contains('on') ? $('sourceTag').value.trim() : '',
+      // A release-hosted source carries its own tag and is auto-deleted by the
+      // workflow; the manual tag box only applies to link-based sources.
+      source_release_tag: state.sourceTag
+        || ($('tabLink').classList.contains('on') ? $('sourceTag').value.trim() : ''),
     };
   }
 
@@ -748,7 +842,7 @@
   // browser refresh must not throw the upload away.
   const lastSrc = store.get('source', null);
   if (lastSrc && /^https?:\/\//.test(lastSrc.url || '')) {
-    setSource(lastSrc.url, { name: lastSrc.name, size: lastSrc.size || 0, at: lastSrc.at || 0, persist: false });
+    setSource(lastSrc.url, { name: lastSrc.name, size: lastSrc.size || 0, at: lastSrc.at || 0, tag: lastSrc.tag || '', persist: false });
   }
   showSrc();
 

@@ -243,7 +243,7 @@ async function download(url, out) {
       const tmp = `${out}.part`;
       await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
       const size = fs.statSync(tmp).size;
-      if (size < 100 * 1024) throw new Error(`file too small (${size} bytes) — link probably expired`);
+      if (size < 1024) throw new Error(`file too small (${size} bytes) — download failed`);
       if (len && Math.abs(size - len) > 1024 * 1024) throw new Error(`short read ${size}/${len}`);
       fs.renameSync(tmp, out);
       log(`downloaded ${(size / 1e6).toFixed(1)} MB (${type || 'unknown type'})`);

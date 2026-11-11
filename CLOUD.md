@@ -90,16 +90,22 @@ Paste the link in **Paste a link** — no upload needed. The runner installs
 
 ## Bigger than 100 MB
 
-Upload from the PC to a GitHub release instead of tmpfiles:
+The phone page handles this by itself: pick a file between 100 MB and 2 GB and
+it uploads it **straight to a release in your repo** (release assets allow up to
+2 GiB each) using the token from Setup, with the same progress bar. The
+workflow's `Drop source release` step deletes that release — and its 2 GB —
+automatically once the render ends, so nothing is left in the repo.
+
+From the PC the same storage is reachable via `scripts/push-source.mjs`:
 
 ```powershell
 $env:GITHUB_TOKEN = 'github_pat_...'
 node scripts/push-source.mjs --repo <you>/clipforge --file "D:\video.mp4"
 ```
 
-It prints an `asset url` (paste in **Link paste karo**) and a `release tag`
+It prints an `asset url` (paste in **Paste a link**) and a `release tag`
 (pass it as `source_release_tag` so the render deletes the source release when
-it is done). Release assets allow up to **2 GB per file**.
+it is done).
 
 ## Running the same pipeline locally
 
