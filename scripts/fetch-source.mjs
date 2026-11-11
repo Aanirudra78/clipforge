@@ -208,7 +208,11 @@ async function download(url, out) {
     } catch (err) {
       lastErr = err;
       log(`attempt ${attempt} failed: ${err.message}`);
-      if (attempt < 4) await new Promise((r) => setTimeout(r, attempt * 8000));
+      // Permanent failures: a webpage instead of a file, or a 4xx that more
+      // retries cannot fix. Only network/5xx problems deserve another attempt.
+      const permanent = /HTML page|too small|HTTP 4(?!29)/.test(err.message);
+      if (attempt < 4 && !permanent) await new Promise((r) => setTimeout(r, attempt * 8000));
+      else if (permanent) break;
     }
   }
   throw lastErr;

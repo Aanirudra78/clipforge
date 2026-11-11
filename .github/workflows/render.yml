@@ -66,7 +66,8 @@ jobs:
   render:
     # Pinned: ubuntu-latest is moving to 26.04 during Nov 2026.
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    # A hung apt mirror must never hold the concurrency queue for hours.
+    timeout-minutes: 120
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
@@ -79,10 +80,35 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install ffmpeg
+        # apt mirrors on the Azure images hang regularly (hours-long freezes);
+        # every command gets a hard timeout and a retry, and if apt still fails
+        # a static ffmpeg from GitHub releases lands in /usr/bin instead.
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          set -e
+          if command -v ffmpeg >/dev/null 2>&1; then ffmpeg -version | head -n 1; exit 0; fi
+          try_update() {
+            timeout 150 sudo apt-get update -qq || echo "apt-get update failed/timed out (attempt $1)"
+          }
+          try_install() {
+            timeout 300 sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          }
+          ok=0
+          for i in 1 2; do
+            try_update "$i" || true
+            if try_install; then ok=1; break; fi
+            sleep 10
+          done
+          if [ "$ok" != 1 ]; then
+            echo "apt failed twice - falling back to a static ffmpeg build"
+            curl -fsSL --retry 3 -o /tmp/ff.tar.xz \
+              https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+            tar -xJf /tmp/ff.tar.xz -C /tmp
+            sudo cp /tmp/ffmpeg-master-latest-linux64-gpl/bin/ffmpeg /usr/bin/ffmpeg
+            sudo cp /tmp/ffmpeg-master-latest-linux64-gpl/bin/ffprobe /usr/bin/ffprobe
+            sudo chmod +x /usr/bin/ffmpeg /usr/bin/ffprobe
+          fi
           ffmpeg -version | head -n 2
+          ffprobe -version | head -n 1
 
       # Pinned yt-dlp build for YouTube / TikTok / Twitch links (the same
       # version proven on the laptop). ~15 MB, a few seconds to fetch.
