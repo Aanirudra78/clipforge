@@ -123,6 +123,7 @@
 
   <section class="card" id="sourceCard">
     <h2>2 &middot; Video</h2>
+    <div id="srcState" class="note">No video selected yet.</div>
     <div class="tabs">
       <button id="tabUpload" class="on">Upload from phone</button>
       <button id="tabLink">Paste a link</button>
@@ -137,7 +138,6 @@
       <div class="bar hidden" id="upBar"><i></i></div>
       <div id="upNote" class="note">The upload goes to tmpfiles.org and is deleted automatically after 24 hours. Keep this screen open until the upload finishes.</div>
     </div>
-
     <div id="paneLink" class="hidden">
       <label for="link">Video link</label>
       <input id="link" type="url" placeholder="YouTube, TikTok, Twitch or any direct mp4 link" autocapitalize="off" spellcheck="false">
@@ -266,6 +266,7 @@
     sourceUrl: '',
     fileName: '',
     fileSize: 0,
+    sourceAt: 0,
     uploading: false,
     run: store.get('run', null),
     release: null,
@@ -273,6 +274,33 @@
   };
 
   let wakeLock = null;
+
+  // ---------- source selection (survives page reloads) ----------
+  // tmpfiles links live 24 h, so remembering the last chosen source is safe
+  // and saves the phone from a silent re-upload after the browser refreshes.
+  function srcLabel() {
+    if (!state.sourceUrl) return 'No video selected yet.';
+    const name = state.fileName || 'video';
+    const size = state.fileSize ? ` &middot; ${fmtBytes(state.fileSize)}` : '';
+    let age = '';
+    if (state.sourceAt) {
+      const s = (Date.now() - state.sourceAt) / 1000;
+      age = s < 3600 ? ` &middot; ${fmtTime(s)} ago` : ` &middot; ${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} m ago`;
+    }
+    const expired = state.sourceAt && Date.now() - state.sourceAt > 23 * 3600 * 1000;
+    return `Ready: <b>${escapeHtml(name)}</b>${size}${age}${expired ? ' &middot; <span style="color:var(--bad)">link may be expired, upload again</span>' : ''}`;
+  }
+  function showSrc() { note('srcState', srcLabel(), state.sourceUrl ? 'note ok' : 'note'); }
+  function setSource(url, { name = '', size = 0, at = Date.now(), persist = true } = {}) {
+    state.sourceUrl = url || '';
+    state.fileName = name;
+    state.fileSize = size;
+    state.sourceAt = url ? at : 0;
+    if (persist) {
+      store.set('source', url ? { url, name, size, at } : null);
+    }
+    showSrc();
+  }
 
   // ---------- tiny ui helpers ----------
   function banner(html, kind = 'bad') {
@@ -406,12 +434,10 @@
   async function pickFile() {
     const file = $('file').files[0];
     if (!file) return;
-    state.fileName = file.name;
-    state.fileSize = file.size;
-    state.sourceUrl = '';
     note('fileHint', `${escapeHtml(file.name)} &middot; ${fmtBytes(file.size)}`, 'note');
     $('upBar').classList.add('hidden');
     if (file.size > 100 * 1024 * 1024) {
+      setSource('', { persist: true });
       note('upNote', 'This file is larger than 100 MB, so it cannot go to tmpfiles. Use the "Paste a link" tab with a direct URL instead.', 'note bad');
       return;
     }
@@ -435,7 +461,7 @@
         const left = speed > 0 ? (file.size - loaded) / speed : 0;
         note('upNote', `Upload ${Math.round(frac * 100)}% &middot; ${fmtBytes(loaded)}/${fmtBytes(file.size)}${left > 1 ? ` &middot; ~${fmtTime(left)} left` : ''}`, 'note');
       });
-      state.sourceUrl = url;
+      setSource(url, { name: file.name, size: file.size });
       bar.style.width = '100%';
       note('upNote', `&#10003; Uploaded. Press Start render. (The link stays alive for 24 hours.)`, 'note ok');
     } catch (err) {
@@ -679,9 +705,18 @@
       saveCfg();
       ready();
       if (!state.sourceUrl) {
-        if ($('paneLink').classList.contains('hidden')) throw new Error('First upload a video or paste a link.');
-        state.sourceUrl = $('link').value.trim();
-        if (!/^https?:\/\//.test(state.sourceUrl)) throw new Error('The link must start with https://');
+        // The link box counts even from the upload tab - pasting is pasting.
+        const typed = $('link').value.trim();
+        if (/^https?:\/\//.test(typed)) {
+          $('tabLink').click();
+          setSource(typed, { name: 'pasted link', persist: false });
+        }
+      }
+      if (!state.sourceUrl) {
+        if (!$('paneLink').classList.contains('hidden')) {
+          throw new Error('Paste the video link in the "Video link" box above (section 2), then press Start render.');
+        }
+        throw new Error('No video yet: tap "Choose a video" in section 2, wait for the green Uploaded note, then press Start render.');
       }
       if (!store.get('branch', '')) await testConnection();
       if (!store.get('branch', '')) throw new Error('Default branch unknown - press Test connection.');
@@ -709,6 +744,14 @@
   loadCfg();
   if (!state.repo) show('setupCard', true);
 
+  // Restore the last chosen video - tmpfiles links stay alive for 24 h, so a
+  // browser refresh must not throw the upload away.
+  const lastSrc = store.get('source', null);
+  if (lastSrc && /^https?:\/\//.test(lastSrc.url || '')) {
+    setSource(lastSrc.url, { name: lastSrc.name, size: lastSrc.size || 0, at: lastSrc.at || 0, persist: false });
+  }
+  showSrc();
+
   $('saveCfg').onclick = () => { try { saveCfg(); } catch (e) { banner(escapeHtml(e.message), 'bad'); } };
   $('testCfg').onclick = testConnection;
   $('forgetCfg').onclick = () => {
@@ -727,7 +770,11 @@
     $('tabLink').classList.add('on'); $('tabUpload').classList.remove('on');
     show('paneLink', true); show('paneUpload', false);
   };
-  $('link').oninput = () => { state.sourceUrl = $('link').value.trim(); };
+  $('link').oninput = () => {
+    const v = $('link').value.trim();
+    if (/^https?:\/\//.test(v)) setSource(v, { name: 'pasted link' });
+    else if (!state.uploading) setSource('', { persist: false });
+  };
 
   // Gaming mode flips the sensible defaults: the game itself is the b-roll and
   // a music bed fights the gameplay audio. The user can still override both.
