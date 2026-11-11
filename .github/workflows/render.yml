@@ -87,10 +87,11 @@ jobs:
           set -e
           if command -v ffmpeg >/dev/null 2>&1; then ffmpeg -version | head -n 1; exit 0; fi
           try_update() {
-            timeout 150 sudo apt-get update -qq || echo "apt-get update failed/timed out (attempt $1)"
+            # -k: apt ignores SIGTERM, only SIGKILL actually stops a hung mirror
+            timeout -k 10 150 sudo apt-get update -qq || echo "apt-get update failed/timed out (attempt $1)"
           }
           try_install() {
-            timeout 300 sudo apt-get install -y -qq --no-install-recommends ffmpeg
+            timeout -k 10 300 sudo apt-get install -y -qq --no-install-recommends ffmpeg
           }
           ok=0
           for i in 1 2; do
