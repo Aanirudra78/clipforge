@@ -558,7 +558,10 @@
       bar.style.width = '0';
       // do not leave an empty release behind on a failed upload
       if (rel && rel.id) { api(`/repos/${state.repo}/releases/${rel.id}`, { method: 'DELETE' }).catch(() => {}); }
-      note('upNote', `Upload failed: ${escapeHtml(err.message)}. Try again, or use the link tab.`, 'note bad');
+      const hint = /not accessible|403/i.test(err.message)
+        ? 'Your token lacks permission. At github.com/settings/personal-access-tokens give the token "Contents: Read and write" for this repo, save it in Setup, and pick the file again.'
+        : 'Try again, or use the link tab.';
+      note('upNote', `Upload failed: ${escapeHtml(err.message)}. ${hint}`, 'note bad');
     } finally {
       state.uploading = false;
       $('go').disabled = false;
