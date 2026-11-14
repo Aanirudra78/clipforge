@@ -136,7 +136,7 @@
       </label>
       <input id="file" type="file" accept="video/*" class="hidden">
       <div class="bar hidden" id="upBar"><i></i></div>
-      <div id="upNote" class="note">Files up to 100 MB go to tmpfiles.org (auto-deleted in 24 h). Bigger files upload straight to your GitHub repo (release assets, up to 2 GB) and are deleted automatically after the render. Keep this screen open until the upload finishes.</div>
+      <div id="upNote" class="note">Files up to 100 MB upload in one go to tmpfiles.org. Bigger videos are split into ~95 MB parts and uploaded one by one (up to 2 GB total) - the runner stitches them back together. Everything is deleted automatically after 24 hours. Keep this screen open until the upload finishes.</div>
     </div>
     <div id="paneLink" class="hidden">
       <label for="link">Video link</label>
@@ -289,7 +289,8 @@
       age = s < 3600 ? ` &middot; ${fmtTime(s)} ago` : ` &middot; ${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} m ago`;
     }
     const expired = state.sourceAt && Date.now() - state.sourceAt > 23 * 3600 * 1000 && !state.sourceTag;
-    return `Ready: <b>${escapeHtml(name)}</b>${size}${age}${state.sourceTag ? ' &middot; stored in your repo, auto-deleted after render' : ''}${expired ? ' &middot; <span style="color:var(--bad)">link may be expired, upload again</span>' : ''}`;
+    const parts = state.sourceUrl.includes(',') ? ` &middot; in ${state.sourceUrl.split(',').length} parts, stitched on the runner` : '';
+    return `Ready: <b>${escapeHtml(name)}</b>${size}${age}${parts}${state.sourceTag ? ' &middot; stored in your repo, auto-deleted after render' : ''}${expired ? ' &middot; <span style="color:var(--bad)">link may be expired, upload again</span>' : ''}`;
   }
   function showSrc() { note('srcState', srcLabel(), state.sourceUrl ? 'note ok' : 'note'); }
   function setSource(url, { name = '', size = 0, at = Date.now(), tag = '', persist = true } = {}) {
@@ -410,11 +411,11 @@
   }
 
   // ---------- upload ----------
-  function uploadFile(file, onProgress) {
+  function uploadFile(blob, name, onProgress) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const fd = new FormData();
-      fd.append('file', file, file.name || 'source.mp4');
+      fd.append('file', blob, name);
       xhr.open('POST', 'https://tmpfiles.org/api/v1/upload?expire=86400');
       xhr.timeout = 45 * 60 * 1000;
       xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total, e.loaded); };
@@ -433,26 +434,6 @@
     });
   }
 
-  /** Raw octet-stream PUT-style upload, used for GitHub release assets. */
-  function uploadRaw(file, url, headers, onProgress) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', url);
-      xhr.timeout = 120 * 60 * 1000;
-      for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
-      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total, e.loaded); };
-      xhr.onload = () => {
-        let j = null;
-        try { j = JSON.parse(xhr.responseText); } catch {}
-        if (xhr.status >= 200 && xhr.status < 300 && j && j.url) resolve(j);
-        else reject(new Error(`upload ${xhr.status}: ${String(xhr.responseText || '').slice(0, 140)}`));
-      };
-      xhr.onerror = () => reject(new Error('network error during upload - check your internet'));
-      xhr.ontimeout = () => reject(new Error('upload timed out - try again'));
-      xhr.send(file);
-    });
-  }
-
   const MB = 1024 * 1024;
   const GB = 1024 * MB;
 
@@ -462,16 +443,12 @@
     note('fileHint', `${escapeHtml(file.name)} &middot; ${fmtBytes(file.size)}`, 'note');
     $('upBar').classList.add('hidden');
     if (file.size > 2 * GB) {
-      note('upNote', 'Over 2 GB - GitHub release storage cannot take it. Trim the video or paste a direct link instead.', 'note bad');
+      note('upNote', 'Over 2 GB - too big for the free storage. Trim the video or paste a direct link instead.', 'note bad');
       return;
     }
     if (file.size > 100 * MB) {
-      // tmpfiles.org stops at 100 MB; bigger files go to a release in the repo
-      // (up to 2 GB). The workflow deletes that release after the render.
-      if (!state.repo || !state.token) {
-        note('upNote', 'Files over 100 MB upload to your GitHub repo - save the repo and token in Setup first.', 'note bad');
-        return;
-      }
+      // tmpfiles.org stops at 100 MB per file, and GitHub's upload endpoint
+      // refuses browser requests - so big videos are split into parts.
       await uploadBig(file);
       return;
     }
@@ -488,7 +465,7 @@
     try {
       if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
       note('upNote', 'Uploading&hellip; 0%', 'note');
-      const url = await uploadFile(file, (frac, loaded) => {
+      const url = await uploadFile(file, file.name || 'source.mp4', (frac, loaded) => {
         bar.style.width = `${Math.round(frac * 100)}%`;
         const secs = (Date.now() - t0) / 1000;
         const speed = secs > 1 ? loaded / secs : 0;
@@ -509,10 +486,13 @@
   }
 
   /**
-   * 100 MB - 2 GB: straight into a release in the user's repo. The token from
-   * Setup authorises it, GitHub allows 2 GiB per release asset, and the
-   * workflow's "Drop source release" step deletes it once the render ends -
-   * nothing extra to clean up by hand.
+   * Over 100 MB: tmpfiles refuses a single file that big, and GitHub's release
+   * upload endpoint does not accept browser requests (no CORS headers - the
+   * direct-to-repo design failed in the field with 405). So the video is split
+   * into ~95 MB parts with Blob.slice (no extra memory) and uploaded one by
+   * one. The runner's fetch-source downloads every part, stitches them back in
+   * order and verifies the mp4 container. Parts are stored only on tmpfiles
+   * (auto-delete in 24 h).
    */
   async function uploadBig(file) {
     if (state.uploading) return;
@@ -520,48 +500,42 @@
     $('go').disabled = true;
     $('upBar').classList.remove('hidden');
     const bar = $('upBar').firstElementChild;
-    const t0 = Date.now();
-    let rel = null;
+    const PART = 95 * MB;
+    const total = Math.ceil(file.size / PART);
+    const base = (file.name || 'source.mp4').replace(/\.[^.]+$/, '') || 'source';
+    const pad = (n) => String(n).padStart(2, '0');
+    const urls = [];
+    let doneBytes = 0;
     try {
       if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen').catch(() => null);
-      if (!store.get('branch', '')) await testConnection();
-      if (!store.get('branch', '')) throw new Error('default branch unknown - press Test connection in Setup');
-
-      note('upNote', 'Creating storage in your repo&hellip;', 'note');
-      const tag = `src-${Date.now()}`;
-      rel = await api(`/repos/${state.repo}/releases`, {
-        method: 'POST',
-        body: {
-          tag_name: tag,
-          name: `phone source ${new Date().toISOString().slice(0, 10)}`,
-          body: 'Uploaded from the phone. The render deletes this release automatically.',
-        },
-      });
-
-      note('upNote', 'Uploading to GitHub&hellip; 0%', 'note');
-      const uploadUrl = `${rel.upload_url.split('{')[0]}?name=${encodeURIComponent(file.name || 'source.mp4')}`;
-      const asset = await uploadRaw(uploadUrl, file, {
-        'content-type': 'application/octet-stream',
-        authorization: `Bearer ${state.token}`,
-      }, (frac, loaded) => {
-        bar.style.width = `${Math.round(frac * 100)}%`;
-        const secs = (Date.now() - t0) / 1000;
-        const speed = secs > 1 ? loaded / secs : 0;
-        const left = speed > 0 ? (file.size - loaded) / speed : 0;
-        note('upNote', `Upload ${Math.round(frac * 100)}% &middot; ${fmtBytes(loaded)}/${fmtBytes(file.size)}${left > 1 ? ` &middot; ~${fmtTime(left)} left` : ''}`, 'note');
-      });
-
-      setSource(asset.url, { name: file.name, size: file.size, tag });
+      for (let i = 0; i < total; i++) {
+        const blob = file.slice(i * PART, Math.min((i + 1) * PART, file.size));
+        const partName = `${base}.cfpart-${pad(i + 1)}-of-${pad(total)}.mp4`;
+        let url = null;
+        // one retry per part: a hiccup at part 15 of 21 must not kill the upload
+        for (let attempt = 1; attempt <= 2 && !url; attempt++) {
+          try {
+            const loaded0 = doneBytes;
+            url = await uploadFile(blob, partName, (frac, loaded) => {
+              bar.style.width = `${Math.round(((loaded0 + loaded) / file.size) * 100)}%`;
+              note('upNote', `Part ${i + 1} of ${total} &middot; ${Math.round(frac * 100)}% &middot; ${fmtBytes(loaded0 + loaded)}/${fmtBytes(file.size)}`, 'note');
+            });
+          } catch (err) {
+            if (attempt === 2) throw err;
+            note('upNote', `Part ${i + 1} failed (${escapeHtml(err.message)}) - retrying&hellip;`, 'note');
+            await new Promise((r) => setTimeout(r, 4000));
+          }
+        }
+        urls.push(url);
+        doneBytes += blob.size;
+        if (i < total - 1) await new Promise((r) => setTimeout(r, 1500)); // be gentle with tmpfiles
+      }
+      setSource(urls.join(','), { name: file.name, size: file.size });
       bar.style.width = '100%';
-      note('upNote', '&#10003; Stored in your repo (release ' + escapeHtml(tag) + '). Press Start render - this release is deleted automatically after the render.', 'note ok');
+      note('upNote', `&#10003; Uploaded in ${total} parts. Press Start render - the parts are stitched back together on the runner. (Parts are deleted after 24 hours.)`, 'note ok');
     } catch (err) {
       bar.style.width = '0';
-      // do not leave an empty release behind on a failed upload
-      if (rel && rel.id) { api(`/repos/${state.repo}/releases/${rel.id}`, { method: 'DELETE' }).catch(() => {}); }
-      const hint = /not accessible|403/i.test(err.message)
-        ? 'Your token lacks permission. At github.com/settings/personal-access-tokens give the token "Contents: Read and write" for this repo, save it in Setup, and pick the file again.'
-        : 'Try again, or use the link tab.';
-      note('upNote', `Upload failed: ${escapeHtml(err.message)}. ${hint}`, 'note bad');
+      note('upNote', `Upload failed on part ${urls.length + 1} of ${total}: ${escapeHtml(err.message)}. Press Choose a video and pick the file again to restart.`, 'note bad');
     } finally {
       state.uploading = false;
       $('go').disabled = false;

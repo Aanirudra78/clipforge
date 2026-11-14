@@ -91,12 +91,15 @@ Paste the link in **Paste a link** — no upload needed. The runner installs
 ## Bigger than 100 MB
 
 The phone page handles this by itself: pick a file between 100 MB and 2 GB and
-it uploads it **straight to a release in your repo** (release assets allow up to
-2 GiB each) using the token from Setup, with the same progress bar. The
-workflow's `Drop source release` step deletes that release — and its 2 GB —
-automatically once the render ends, so nothing is left in the repo.
+it splits it into ~95 MB parts and uploads them one by one to tmpfiles.org
+(tmpfiles caps a single file at 100 MB, and GitHub's upload endpoint does not
+accept browser requests, so parts are the honest way). The runner's
+`fetch-source` downloads every part, stitches them back in order and checks the
+mp4 container before rendering. Parts live only on tmpfiles and auto-delete
+after 24 h.
 
-From the PC the same storage is reachable via `scripts/push-source.mjs`:
+From the PC, a release asset is still the tidier route (single file, deleted
+with the release after the render) via `scripts/push-source.mjs`:
 
 ```powershell
 $env:GITHUB_TOKEN = 'github_pat_...'

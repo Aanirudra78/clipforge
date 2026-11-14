@@ -264,6 +264,7 @@ async function download(url, out) {
 try {
   let direct = null;
   let ytdlpHit = false;
+  let stitched = false;
   if (isSiteUrl(URL_IN)) {
     const bin = await findYtDlp();
     if (bin) {
@@ -275,11 +276,39 @@ try {
     } else {
       throw new Error('video-site link (YouTube etc.) needs yt-dlp, which is not installed on this runner. Upload the video from your phone or paste a direct mp4 link.');
     }
+  } else if (URL_IN.includes(',')) {
+    // The phone page splits uploads over 100 MB into ~95 MB parts (tmpfiles
+    // caps a single file there) and sends them as a comma-separated URL list.
+    // Download every part, concatenate in order, verify the container once.
+    stitched = true;
+    const parts = URL_IN.split(',').map((s) => s.trim()).filter(Boolean);
+    log(`multi-part source: ${parts.length} part(s)`);
+    const partFiles = [];
+    try {
+      for (let i = 0; i < parts.length; i++) {
+        const resolved = (await resolveTmpfiles(parts[i])) || parts[i];
+        const pf = `${OUT}.cfpart-${String(i).padStart(3, '0')}`;
+        log(`part ${i + 1}/${parts.length}: ${resolved.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
+        await download(resolved, pf);
+        partFiles.push(pf);
+      }
+      await pipeline(
+        fs.createReadStream(partFiles[0]),
+        // append every remaining part, then the first is already in the chain
+        fs.createWriteStream(OUT),
+      );
+      for (const pf of partFiles.slice(1)) {
+        await pipeline(fs.createReadStream(pf), fs.createWriteStream(OUT, { flags: 'a' }));
+      }
+    } finally {
+      for (const pf of partFiles) { try { fs.unlinkSync(pf); } catch {} }
+    }
+    log(`stitched ${partFiles.length} part(s) into ${OUT}`);
   } else {
     direct = (await resolveTmpfiles(URL_IN)) || URL_IN;
     log(`source: ${direct.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
   }
-  const size = ytdlpHit ? fs.statSync(OUT).size : await download(direct, OUT);
+  const size = (ytdlpHit || stitched) ? fs.statSync(OUT).size : await download(direct, OUT);
   const head = Buffer.alloc(12);
   const fd = fs.openSync(OUT, 'r');
   fs.readSync(fd, head, 0, 12, 0);
