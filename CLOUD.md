@@ -110,6 +110,23 @@ It prints an `asset url` (paste in **Paste a link**) and a `release tag`
 (pass it as `source_release_tag` so the render deletes the source release when
 it is done).
 
+## YouTube links: known hard limit
+
+Google bot-checks GitHub's datacenter IPs (and age-restricted videos additionally
+need a signed-in, age-verified session). Every public workaround was tested —
+Cobalt API (now auth-gated), Piped/Invidious instances (dead or blocked),
+browser-cookie tricks — none work reliably. So **YouTube links cannot be
+downloaded by the cloud runner**. The reliable path is: download the video in a
+browser on your own PC/phone, then upload that file here.
+
+`scripts/youtube-to-source.mjs` is a helper for PC-side automation: it downloads
+a YouTube link with yt-dlp using cookies from a local browser, uploads the file
+to tmpfiles and prints `{"source_url": ...}` for the render dispatch. It works
+only where the local browser cookie database is readable (close the browser
+completely first if Chrome reports a locked database); on machines where cookies
+are locked/DPAPI-protected it fails, and the manual browser download is the
+only option.
+
 ## Running the same pipeline locally
 
 ```powershell
