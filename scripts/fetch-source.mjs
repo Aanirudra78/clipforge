@@ -172,6 +172,10 @@ async function downloadWithYtDlp(bin, url, out) {
   ];
   const JS = ['--js-runtimes', 'node'];
   const BOT = /sign in to confirm|not a bot|HTTP Error 403|video data: HTTP 403|member|private video/i;
+  const AGE = /age-restricted|confirm your age|age verification/i;
+  const STALE_COOKIES = /cookies are no longer valid|cookie.*rotated/i;
+  let ageBlocked = false;
+  let staleCookies = false;
 
   const withCookies = await cookieArgs(out);
   const rounds = withCookies.length ? [withCookies, []] : [[]];
@@ -210,7 +214,12 @@ async function downloadWithYtDlp(bin, url, out) {
             p.on('close', (code) => {
               if (code !== 0) {
                 if (/larger than max-filesize/i.test(err)) return reject(new Error(`TOOBIG:${t.h}`));
-                if (BOT.test(err)) {
+                if (AGE.test(err)) {
+              ageBlocked = true;
+              return reject(new Error(`AGEBLOCK: age-restricted video (${err.slice(-160)})`));
+            }
+            if (STALE_COOKIES.test(err)) staleCookies = true;
+            if (BOT.test(err)) {
                   return reject(new Error(`BOTCHECK:${client.name} the site blocked this downloader (bot check / login needed). ${err.slice(-200)}`));
                 }
                 if (/private video|members-only/i.test(err)) {
@@ -232,6 +241,11 @@ async function downloadWithYtDlp(bin, url, out) {
             log(`too big for ${msg.slice(7)}p cap, dropping quality`);
             break; // out of the client loop, next height
           }
+          if (msg.startsWith('AGEBLOCK:')) {
+            blocked++;
+            log('age-restricted video - trying remaining clients (fresh, age-verified cookies can help)');
+            continue;
+          }
           if (msg.startsWith('BOTCHECK:')) {
             const who = msg.slice(9, msg.indexOf(' ', 9) || undefined);
             if (who === 'final') throw new Error(msg.slice(msg.indexOf(' ') + 1));
@@ -249,9 +263,19 @@ async function downloadWithYtDlp(bin, url, out) {
     // A bot check does not depend on the height cap, so do not repeat the whole
     // matrix for 720p/480p when every single attempt was blocked.
     if (attempts > 0 && blocked === attempts) {
+      const cookieHint = staleCookies
+        ? ' The YTDLP_COOKIES secret is invalid/rotated - re-export cookies from a logged-in browser.'
+        : '';
+      if (ageBlocked) {
+        throw new Error(
+          'This video is age-restricted (18+): YouTube demands a signed-in, age-verified browser session, ' +
+            'which a cloud runner cannot provide.' + cookieHint +
+            ' Use a non-age-restricted video, or download this one on your PC and upload the file here.'
+        );
+      }
       throw new Error(
-        `YouTube is blocking this runner for every player client (bot check, ${attempts} attempts). ` +
-          'Upload the video from your phone instead, or paste a direct mp4 link.'
+        `YouTube is blocking this runner for every player client (bot check, ${attempts} attempts).` + cookieHint +
+          ' Upload the video from your phone instead, or paste a direct mp4 link.'
       );
     }
   }
