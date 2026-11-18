@@ -153,32 +153,26 @@ async function downloadWithYtDlp(bin, url, out) {
   let lastErr = null;
   const tries = MAX_HEIGHT
     ? [{ h: MAX_HEIGHT, size: 1500 }]
-    : [{ h: 1080, size: 1500 }, { h: 720, size: 700 }, { h: 480, size: 500 }];
-  // YouTube blocks datacenter IPs (CI runners) in waves. Which player client
-  // still serves media changes every few weeks, so try the whole set instead of
-  // guessing: embedded/safari/mweb/ios clients often survive when web+tv are
-  // blocked. Each round is also retried without cookies, because stale cookies
-  // make the bot check *worse* (YouTube treats them as a broken session).
+    : [{ h: 720, size: 1200 }, { h: 480, size: 600 }];
+  // Keep this list SHORT. YouTube treats a burst of client switches from one IP
+  // as bot traffic: 18 attempts in five minutes used to get the whole runner
+  // range throttled for hours. Three clients, one cookie mode, human-ish pauses.
   const CLIENTS = [
     { name: 'default', args: [] },
-    { name: 'web_safari', args: ['--extractor-args', 'youtube:player_client=web_safari'] },
-    { name: 'mweb', args: ['--extractor-args', 'youtube:player_client=mweb'] },
-    { name: 'web_embedded', args: ['--extractor-args', 'youtube:player_client=web_embedded'] },
-    { name: 'tv_embedded', args: ['--extractor-args', 'youtube:player_client=tv_embedded'] },
-    { name: 'tv', args: ['--extractor-args', 'youtube:player_client=tv'] },
     { name: 'ios', args: ['--extractor-args', 'youtube:player_client=ios'] },
-    { name: 'android_vr', args: ['--extractor-args', 'youtube:player_client=android_vr'] },
-    { name: 'android', args: ['--extractor-args', 'youtube:player_client=android'] },
+    { name: 'tv', args: ['--extractor-args', 'youtube:player_client=tv'] },
   ];
   const JS = ['--js-runtimes', 'node'];
   const BOT = /sign in to confirm|not a bot|HTTP Error 403|video data: HTTP 403|member|private video/i;
   const AGE = /age-restricted|confirm your age|age verification/i;
   const STALE_COOKIES = /cookies are no longer valid|cookie.*rotated/i;
+  const RATE = /HTTP Error 429|too many requests/i;
   let ageBlocked = false;
   let staleCookies = false;
+  let rateLimited = false;
 
   const withCookies = await cookieArgs(out);
-  const rounds = withCookies.length ? [withCookies, []] : [[]];
+  const rounds = withCookies.length ? [withCookies] : [[]];
 
   for (const t of tries) {
     let attempts = 0;
@@ -198,6 +192,7 @@ async function downloadWithYtDlp(bin, url, out) {
               '-f', `bv*[height<=${t.h}]+ba/b[height<=${t.h}]/b`,
               '--max-filesize', `${t.size}M`,
               '--retries', '4', '--fragment-retries', '10',
+              '--sleep-requests', '2', '--retry-sleep', '5',
               ...cookieSet,
               ...JS,
               ...client.args,
@@ -214,6 +209,10 @@ async function downloadWithYtDlp(bin, url, out) {
             p.on('close', (code) => {
               if (code !== 0) {
                 if (/larger than max-filesize/i.test(err)) return reject(new Error(`TOOBIG:${t.h}`));
+                if (RATE.test(err)) {
+                  rateLimited = true;
+                  return reject(new Error(`RATE:too many requests (429) ${err.slice(-160)}`));
+                }
                 if (AGE.test(err)) {
               ageBlocked = true;
               return reject(new Error(`AGEBLOCK: age-restricted video (${err.slice(-160)})`));
@@ -253,6 +252,11 @@ async function downloadWithYtDlp(bin, url, out) {
             log(`${client.name} client is bot-blocked, trying the next player client`);
             continue;
           }
+          if (msg.startsWith('RATE:')) {
+            blocked++;
+            log(`${client.name} client hit a 429 rate-limit`);
+            continue;
+          }
           log(`yt-dlp attempt failed: ${msg.slice(0, 200)}`);
         }
       }
@@ -275,6 +279,7 @@ async function downloadWithYtDlp(bin, url, out) {
       }
       throw new Error(
         `YouTube is blocking this runner for every player client (bot check, ${attempts} attempts).` + cookieHint +
+          (rateLimited ? ' YouTube is also rate-limiting this IP (429) - a later retry usually works.' : '') +
           ' Upload the video from your phone instead, or paste a direct mp4 link.'
       );
     }
