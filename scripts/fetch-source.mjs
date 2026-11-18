@@ -74,6 +74,32 @@ async function cookieArgs(out) {
   const file = path.join(path.dirname(out), 'yt-cookies.txt');
   await fs.promises.writeFile(file, raw.endsWith('\n') ? raw : `${raw}\n`);
   log('using YouTube cookies from the YTDLP_COOKIES secret');
+
+  // Diagnose the cookie jar: YouTube answers a stale/partial export with the
+  // same "Sign in to confirm you're not a bot" it gives an anonymous client,
+  // which makes a bad export look like an IP block. Log what we actually have.
+  const rows = raw.split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith('#'));
+  const now = Math.floor(Date.now() / 1000);
+  const names = new Set();
+  let expired = 0;
+  let session = 0;
+  for (const row of rows) {
+    const f = row.split('\t');
+    if (f.length < 7) continue;
+    names.add(f[5]);
+    const exp = Number(f[4]) || 0;
+    if (!exp) session++;
+    else if (exp < now) expired++;
+  }
+  const KEY = ['SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'LOGIN_INFO', '__Secure-1PSID', '__Secure-3PSID', '__Secure-1PAPISID', '__Secure-3PAPISID'];
+  const have = KEY.filter((n) => names.has(n));
+  const missing = KEY.filter((n) => !names.has(n));
+  log(`cookies: ${rows.length} entries · ${expired} expired · ${session} session-only · auth cookies: ${have.length}/${KEY.length}`);
+  if (missing.length) log(`cookies: MISSING ${missing.join(',')}`);
+  if (expired > 0 || missing.length) {
+    log('cookies: the jar looks stale/partial - re-export it while logged in (Include session cookies) or YouTube will keep bot-checking');
+  }
+
   return ['--cookies', file, '--no-cookies-from-browser'];
 }
 
