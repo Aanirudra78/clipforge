@@ -63,6 +63,11 @@ export function pickHighlights({
   silence = [],
   duration = 0,
   count = 4,
+  // The renderer caps one run at 8 clips, so a long video is cut by several
+  // runs. Selection is deterministic, which made every run return the same
+  // top 8. `skip` reserves the peaks earlier runs already used and returns the
+  // next `count` ones, so run 2 (skip 8) continues where run 1 stopped.
+  skip = 0,
   targetLen = 20,
   minLen = 10,
   maxLen = 38,
@@ -128,9 +133,11 @@ export function pickHighlights({
   };
 
   // ---- build windows around peaks ----
-  const minGap = clamp(duration / Math.max(1, count * 4), 4, 40);
+  const want = Math.max(1, count) + Math.max(0, skip);
+  const minGap = clamp(duration / Math.max(1, want * 4), 4, 40);
   const chosen = [];
-  const taken = (start, end, gap) => chosen.some((c) => (
+  const reserved = [];   // peaks already taken by earlier runs (skip)
+  const taken = (start, end, gap) => [...chosen, ...reserved].some((c) => (
     Math.min(c.end, end) - Math.max(c.start, start) > 0
     || (start >= c.start && start < c.end + gap)
     || (end > c.start - gap && end <= c.end)
@@ -140,7 +147,7 @@ export function pickHighlights({
 
   const tryTake = (list, gap) => {
     for (const p of list) {
-      if (chosen.length >= count) break;
+      if (chosen.length + reserved.length >= want) break;
       const len = clamp(targetLen + 2 * pad, minLen, maxLen);
       let start = snapStart(p.t - len * 0.45 - pad, len);
       start = clamp(start, 0, Math.max(0, duration - minLen));
@@ -150,7 +157,7 @@ export function pickHighlights({
       if (end - start < 5) continue;
       if (taken(start, end, gap)) continue;
       const rate = cutRate(start, end);
-      chosen.push({
+      const item = {
         start: Math.round(start * 100) / 100,
         end: Math.round(end * 100) / 100,
         peak: Math.round(p.t * 100) / 100,
@@ -158,15 +165,18 @@ export function pickHighlights({
         score: Math.round((p.c + Math.min(3, rate) * 1.5) * 10) / 10,
         boost: p.c,
         rate,
-      });
+      };
+      if (reserved.length < skip) reserved.push(item);
+      else chosen.push(item);
     }
   };
 
   tryTake(peaks, minGap);
   // Not every video has enough separated peaks (short clips, steady boss music).
   // Relax the spacing before giving up on the requested count.
-  if (chosen.length < count) tryTake(peaks.filter((p) => !chosen.some((c) => Math.abs(c.peak - p.t) < 2)), minGap / 2);
-  if (chosen.length < count) tryTake(peaks, 0);
+  const used = (p) => [...chosen, ...reserved].some((c) => Math.abs(c.peak - p.t) < 2);
+  if (chosen.length + reserved.length < want) tryTake(peaks.filter((p) => !used(p)), minGap / 2);
+  if (chosen.length + reserved.length < want) tryTake(peaks, 0);
   if (!chosen.length) return [];
 
   chosen.sort((a, b) => a.start - b.start);
