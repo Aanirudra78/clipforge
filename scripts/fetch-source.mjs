@@ -363,6 +363,7 @@ const COBALT_INSTANCES = [
 ];
 
 async function downloadWithCobalt(url, out) {
+  let loginRequired = false;
   for (const host of COBALT_INSTANCES) {
     let name = host;
     try { name = new URL(host).hostname; } catch {}
@@ -374,8 +375,16 @@ async function downloadWithCobalt(url, out) {
         body: JSON.stringify({ url, videoQuality: '720', downloadMode: 'auto' }),
         signal: AbortSignal.timeout(30000),
       });
-      if (!res.ok) { log(`Cobalt ${name}: HTTP ${res.status}`); continue; }
-      const j = await res.json();
+      let j = null;
+      try { j = await res.json(); } catch {}
+      if (!res.ok) {
+        const code = j && j.error && j.error.code;
+        log(`Cobalt ${name}: HTTP ${res.status}${code ? ` (${code})` : ''}`);
+        // Cobalt uses this when YouTube itself demands a signed-in session
+        // (age-restricted / private / members-only). No anonymous bridge can fix it.
+        if (/youtube\.login|age|private|member/i.test(String(code))) loginRequired = true;
+        continue;
+      }
       const tunnel = j && (j.url || (j.picker && j.picker[0] && j.picker[0].url));
       if (!tunnel) {
         log(`Cobalt ${name}: no stream URL (${j && j.error ? j.error.code : 'unknown response'})`);
@@ -389,6 +398,13 @@ async function downloadWithCobalt(url, out) {
       // "file too small" = age-restricted/empty tunnel; try the next instance
       log(`Cobalt ${name} failed: ${String(e.message || e).slice(0, 140)}`);
     }
+  }
+  if (loginRequired) {
+    throw new Error(
+      'This YouTube video requires a signed-in account (age-restricted, private, or members-only). ' +
+        'Cloud runners and public downloaders cannot provide that login. ' +
+        'Download the video in your own browser, then upload the file here.'
+    );
   }
   return null;
 }
