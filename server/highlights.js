@@ -134,7 +134,10 @@ export function pickHighlights({
 
   // ---- build windows around peaks ----
   const want = Math.max(1, count) + Math.max(0, skip);
-  const minGap = clamp(duration / Math.max(1, want * 4), 4, 40);
+  // Spacing must NOT depend on count/skip: the candidate order has to be the
+  // same for every run, otherwise `skip` reserves a different set than the
+  // earlier run actually returned (duplicate clips). 32 = 8 clips x 4 slots.
+  const minGap = clamp(duration / 32, 4, 40);
   const chosen = [];
   const reserved = [];   // peaks already taken by earlier runs (skip)
   const taken = (start, end, gap) => [...chosen, ...reserved].some((c) => (
