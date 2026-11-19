@@ -110,14 +110,20 @@ It prints an `asset url` (paste in **Paste a link**) and a `release tag`
 (pass it as `source_release_tag` so the render deletes the source release when
 it is done).
 
-## YouTube links: known hard limit
+## YouTube links: normal vs age-restricted
 
-Google bot-checks GitHub's datacenter IPs (and age-restricted videos additionally
-need a signed-in, age-verified session). Every public workaround was tested —
-Cobalt API (now auth-gated), Piped/Invidious instances (dead or blocked),
-browser-cookie tricks — none work reliably. So **YouTube links cannot be
-downloaded by the cloud runner**. The reliable path is: download the video in a
-browser on your own PC/phone, then upload that file here.
+Google bot-checks GitHub's datacenter IPs, so yt-dlp on the runner cannot fetch
+YouTube links. `fetch-source.mjs` therefore falls back to a **Cobalt public
+downloader** instance: Cobalt fetches the video from its own host and returns a
+short-lived tunnel URL, which the runner downloads. This makes **ordinary
+public YouTube links work from the cloud with no cookies or setup**.
+
+**Age-restricted (18+) videos still cannot be fetched**: Cobalt resolves their
+metadata but the tunnel returns 0 bytes (verified), and YouTube demands a
+signed-in, age-verified session that no cloud runner or public bridge provides.
+For those, download the video in a browser on your own PC/phone, then upload that
+file here. Cobalt community instances come and go; if the primary is down,
+`fetch-source.mjs` tries several backups in order.
 
 `scripts/youtube-to-source.mjs` is a helper for PC-side automation: it downloads
 a YouTube link with yt-dlp using cookies from a local browser, uploads the file
