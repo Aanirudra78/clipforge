@@ -130,7 +130,7 @@ export function sentenceAt(sentences, t) {
   return lo;
 }
 
-export function pickClips({ units, energy, step, silence, duration, count = 6, minLen = 16, maxLen = 46, keyMoments = true }) {
+export function pickClips({ units, energy, step, silence, duration, count = 6, minLen = 16, maxLen = 46, keyMoments = true, skip = 0 }) {
   if (!units.length) return [];
   const p = [...energy].sort((a, b) => a - b);
   const p10 = p[Math.floor(p.length * 0.1)] ?? -50;
@@ -193,13 +193,17 @@ export function pickClips({ units, energy, step, silence, duration, count = 6, m
 
   candidates.sort((a, b) => b.score - a.score);
   const chosen = [];
+  const reserved = []; // candidates already used by earlier runs (skip)
+  const seen = () => [...chosen, ...reserved];
   for (const c of candidates) {
-    if (chosen.length >= count) break;
-    const overlap = chosen.some((o) => {
+    if (chosen.length + reserved.length >= count + Math.max(0, skip)) break;
+    const overlap = seen().some((o) => {
       const ov = Math.min(o.end, c.end) - Math.max(o.start, c.start);
       return ov > 0.12 * Math.min(o.end - o.start, c.end - c.start);
     });
-    if (!overlap && c.end - c.start >= 8) chosen.push(c);
+    if (overlap || c.end - c.start < 8) continue;
+    if (reserved.length < skip) reserved.push(c);
+    else chosen.push(c);
   }
   return chosen.sort((a, b) => a.start - b.start);
 }
