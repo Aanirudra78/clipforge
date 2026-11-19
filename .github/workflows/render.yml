@@ -136,8 +136,27 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
+      # YouTube bot-checks every cloud IP range. WARP gives the job a
+      # different egress (Cloudflare) so yt-dlp is not flagged as a datacenter.
+      - name: Cloudflare WARP
+        continue-on-error: true
+        run: |
+          CODENAME=$(lsb_release -cs)
+          if ! curl -fsI "https://pkg.cloudflareclient.com/dists/$CODENAME/Release" >/dev/null 2>&1; then CODENAME=jammy; fi
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $CODENAME main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends cloudflare-warp
+          warp-cli --accept-tos registration new || true
+          warp-cli --accept-tos mode proxy || true
+          warp-cli --accept-tos proxy port 40000 || true
+          warp-cli --accept-tos connect || true
+          sleep 8
+          warp-cli --accept-tos status || true
+          curl -s --max-time 15 -x socks5://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | grep -E "^(ip|warp)=" || echo "proxy not reachable"
       - name: Download source
         env:
+          YTDLP_PROXY: socks5://127.0.0.1:40000
           SOURCE_URL: ${{ inputs.source_url }}
           # Optional: netscape-format YouTube cookies. Google demands them for
           # datacenter IPs (the runner) - without them public videos fail with
