@@ -56,6 +56,9 @@ const CAPTIONS = String(args.captions || 'auto').toLowerCase(); // auto | on | o
 
 const OPT = {
   count: clampInt(args.count, 1, 8, 6),
+  // Clip runs are capped at 8, so a longer request is cut by several runs.
+  // `skip` tells this run how many top moments earlier runs already used.
+  skip: clampInt(args.skip, 0, 500, 0),
   mode: MODE,
   template: args.template || 'pop',
   accent: args.accent || 'yellow',
@@ -153,7 +156,7 @@ try {
     // scene-cut density, snapped to cuts/silence, 2 s padded.
     const hl = pickHighlights({
       energy: audio.energy, step: audio.step, silence: audio.silence, scenes,
-      duration: meta.duration, count: OPT.count,
+      duration: meta.duration, count: OPT.count, skip: OPT.skip,
       targetLen: clampInt(args.len ?? args['clip-len'], 8, 45, 20), pad: 2,
     });
     chosen = hl.map((c) => ({ ...c, source: 'audio', hook: '' }));
@@ -163,7 +166,7 @@ try {
     const units = speechUnits(tWords, audio.silence, meta.duration);
     const sentences = indexSentences(tWords, audio.silence, meta.duration);
     sentenceCount = sentences.length;
-    if (hasWords && sentences.length >= 4) {
+    if (hasWords && sentences.length >= 4 && !OPT.skip) {
       chosen = await curate({
         sentences, count: OPT.count, minLen: 18, maxLen: 42,
         title: OPT.title || path.basename(SRC), silence: audio.silence, onLog: log,
@@ -172,7 +175,7 @@ try {
     if (!chosen.length) {
       chosen = pickClips({
         units, energy: audio.energy, step: audio.step, silence: audio.silence,
-        duration: meta.duration, count: OPT.count, minLen: 16, maxLen: 46,
+        duration: meta.duration, count: OPT.count, skip: OPT.skip, minLen: 16, maxLen: 46,
       }).map((c) => ({ ...c, source: 'heuristic' }));
       log(`${chosen.length} moments picked with the audio heuristic`);
     } else {
