@@ -173,47 +173,51 @@ async function downloadWithYtDlp(bin, url, out) {
 
   const withCookies = await cookieArgs(out);
   const rounds = withCookies.length ? [withCookies] : [[]];
+  const PROXY = process.env.YTDLP_PROXY ? ['--proxy', process.env.YTDLP_PROXY] : [];
+  const proxySets = PROXY.length ? [PROXY, []] : [[]];
 
-  for (const t of tries) {
+  heights: for (const t of tries) {
     let attempts = 0;
     let blocked = 0;
 
     for (const cookieSet of rounds) {
-      for (const client of CLIENTS) {
-        attempts++;
-        const label = `${client.name}${cookieSet.length ? ' +cookies' : ' (no cookies)'}`;
-        try {
-          log(`yt-dlp: trying height<=${t.h} (client: ${label})`);
-          await new Promise((resolve, reject) => {
-            const p = spawn(bin, [
-              '--no-playlist', '--no-mtime',
-              '--merge-output-format', 'mp4',
-              '--ffmpeg-location', FF_BIN,
-              '-f', `bv*[height<=${t.h}]+ba/b[height<=${t.h}]/b`,
-              '--max-filesize', `${t.size}M`,
-              '--retries', '4', '--fragment-retries', '10',
-              '--sleep-requests', '2', '--retry-sleep', '5',
-              ...cookieSet,
-              ...JS,
-              ...client.args,
-              '-o', out, url,
-            ], { windowsHide: true });
-            let err = '';
-            p.stderr.on('data', (d) => {
-              const s = d.toString();
-              if (err.length < 4000) err += s;
-              process.stderr.write(s);
-            });
-            p.stdout.on('data', (d) => process.stdout.write(d));
-            p.on('error', reject);
-            p.on('close', (code) => {
-              if (code !== 0) {
-                if (/larger than max-filesize/i.test(err)) return reject(new Error(`TOOBIG:${t.h}`));
-                if (RATE.test(err)) {
-                  rateLimited = true;
-                  return reject(new Error(`RATE:too many requests (429) ${err.slice(-160)}`));
-                }
-                if (AGE.test(err)) {
+      for (const proxySet of proxySets) {
+        for (const client of CLIENTS) {
+          attempts++;
+          const kind = `${client.name}${cookieSet.length ? ' +cookies' : ' (no cookies)'}${proxySet.length ? ' +proxy' : ''}`;
+          try {
+            log(`yt-dlp: trying height<=${t.h} (client: ${kind})`);
+            await new Promise((resolve, reject) => {
+              const p = spawn(bin, [
+                '--no-playlist', '--no-mtime',
+                '--merge-output-format', 'mp4',
+                '--ffmpeg-location', FF_BIN,
+                '-f', `bv*[height<=${t.h}]+ba/b[height<=${t.h}]/b`,
+                '--max-filesize', `${t.size}M`,
+                '--retries', '4', '--fragment-retries', '10',
+                '--sleep-requests', '2', '--retry-sleep', '5',
+                ...proxySet,
+                ...cookieSet,
+                ...JS,
+                ...client.args,
+                '-o', out, url,
+              ], { windowsHide: true });
+              let err = '';
+              p.stderr.on('data', (d) => {
+                const s = d.toString();
+                if (err.length < 4000) err += s;
+                process.stderr.write(s);
+              });
+              p.stdout.on('data', (d) => process.stdout.write(d));
+              p.on('error', reject);
+              p.on('close', (code) => {
+                if (code !== 0) {
+                  if (/larger than max-filesize/i.test(err)) return reject(new Error(`TOOBIG:${t.h}`));
+                  if (RATE.test(err)) {
+                    rateLimited = true;
+                    return reject(new Error(`RATE:too many requests (429) ${err.slice(-160)}`));
+                  }
+                  if (AGE.test(err)) {
               ageBlocked = true;
               return reject(new Error(`AGEBLOCK: age-restricted video (${err.slice(-160)})`));
             }
@@ -231,14 +235,14 @@ async function downloadWithYtDlp(bin, url, out) {
                 .catch(reject);
             });
           });
-          log(`yt-dlp: worked with client ${label} at ${t.h}p`);
+          log(`yt-dlp: worked with client ${kind} at ${t.h}p`);
           return out;
         } catch (err) {
           const msg = String(err.message || err);
           lastErr = err;
           if (msg.startsWith('TOOBIG:')) {
             log(`too big for ${msg.slice(7)}p cap, dropping quality`);
-            break; // out of the client loop, next height
+            break heights; // next height
           }
           if (msg.startsWith('AGEBLOCK:')) {
             blocked++;
@@ -260,9 +264,9 @@ async function downloadWithYtDlp(bin, url, out) {
           log(`yt-dlp attempt failed: ${msg.slice(0, 200)}`);
         }
       }
-      // every client in this cookie mode was blocked: the next round (without
-      // cookies) usually is too, but try it before giving up
-    }
+        }
+      }
+      // every client/proxy combination was blocked for this height
 
     // A bot check does not depend on the height cap, so do not repeat the whole
     // matrix for 720p/480p when every single attempt was blocked.
@@ -345,101 +349,20 @@ async function download(url, out) {
   throw lastErr;
 }
 
-/**
- * Cobalt public downloader fallback. GitHub's datacenter IPs are bot-blocked by
- * YouTube, so yt-dlp cannot fetch video links from CI. Cobalt fetches the video
- * from ITS OWN host and hands us a short-lived tunnel URL, which works from any
- * IP. Community instances come and go, so try several in order. This cannot
- * bypass age verification (that tunnel returns 0 bytes), but it makes ordinary
- * public YouTube links work without any cookies/setup on the runner.
- */
-const COBALT_INSTANCES = [
-  'https://co.otomir23.me',
-  'https://cobalt.canine.tools',
-  'https://api-dl.cgm.rs',
-  'https://cobalt-api.alexagirl.studio',
-  'https://coapi.kelig.me',
-  'https://cobalt.wither.ing',
-];
-
-async function downloadWithCobalt(url, out) {
-  let loginRequired = false;
-  for (const host of COBALT_INSTANCES) {
-    let name = host;
-    try { name = new URL(host).hostname; } catch {}
-    try {
-      log(`Cobalt: trying ${name}`);
-      const res = await fetch(`${host}/`, {
-        method: 'POST',
-        headers: { accept: 'application/json', 'content-type': 'application/json', 'user-agent': UA },
-        body: JSON.stringify({ url, videoQuality: '720', downloadMode: 'auto' }),
-        signal: AbortSignal.timeout(30000),
-      });
-      let j = null;
-      try { j = await res.json(); } catch {}
-      if (!res.ok) {
-        const code = j && j.error && j.error.code;
-        log(`Cobalt ${name}: HTTP ${res.status}${code ? ` (${code})` : ''}`);
-        // Cobalt uses this when YouTube itself demands a signed-in session
-        // (age-restricted / private / members-only). No anonymous bridge can fix it.
-        if (/youtube\.login|age|private|member/i.test(String(code))) loginRequired = true;
-        continue;
-      }
-      const tunnel = j && (j.url || (j.picker && j.picker[0] && j.picker[0].url));
-      if (!tunnel) {
-        log(`Cobalt ${name}: no stream URL (${j && j.error ? j.error.code : 'unknown response'})`);
-        continue;
-      }
-      log(`Cobalt ${name}: resolved "${String(j.filename || 'video').slice(0, 70)}" - downloading`);
-      const size = await download(tunnel, out);
-      log(`Cobalt: downloaded via ${name}`);
-      return size;
-    } catch (e) {
-      // "file too small" = age-restricted/empty tunnel; try the next instance
-      log(`Cobalt ${name} failed: ${String(e.message || e).slice(0, 140)}`);
-    }
-  }
-  if (loginRequired) {
-    throw new Error(
-      'This YouTube video requires a signed-in account (age-restricted, private, or members-only). ' +
-        'Cloud runners and public downloaders cannot provide that login. ' +
-        'Download the video in your own browser, then upload the file here.'
-    );
-  }
-  return null;
-}
-
 try {
   let direct = null;
   let ytdlpHit = false;
   let stitched = false;
   if (isSiteUrl(URL_IN)) {
-    log(`video site link: ${URL_IN.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
     const bin = await findYtDlp();
-    let ytErr = null;
     if (bin) {
-      try {
-        await downloadWithYtDlp(bin, URL_IN, OUT);
-        ytdlpHit = true;
-      } catch (e) {
-        ytErr = e;
-        log(`yt-dlp could not fetch this video: ${String(e.message || e).slice(0, 200)}`);
-      }
+      log(`video site link: ${URL_IN.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
+      await downloadWithYtDlp(bin, URL_IN, OUT);
+      ytdlpHit = true;
       // never leave the cookie file lying around
       try { fs.rmSync(path.join(path.dirname(OUT), 'yt-cookies.txt'), { force: true }); } catch {}
     } else {
-      ytErr = new Error('yt-dlp is not installed on this runner');
-    }
-    if (!ytdlpHit) {
-      log('yt-dlp blocked - trying Cobalt public downloader fallback...');
-      const cbSize = await downloadWithCobalt(URL_IN, OUT);
-      if (cbSize) {
-        ytdlpHit = true; // Cobalt already wrote a validated file to OUT
-      } else if (ytErr) {
-        throw ytErr; // keep yt-dlp's more descriptive bot/age error
-      } else {
-        throw new Error('video-site link needs yt-dlp or a working Cobalt instance. Upload the video from your phone or paste a direct mp4 link.');
-      }
+      throw new Error('video-site link (YouTube etc.) needs yt-dlp, which is not installed on this runner. Upload the video from your phone or paste a direct mp4 link.');
     }
   } else if (URL_IN.includes(',')) {
     // The phone page splits uploads over 100 MB into ~95 MB parts (tmpfiles
