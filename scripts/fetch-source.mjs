@@ -291,6 +291,30 @@ async function downloadWithYtDlp(bin, url, out) {
   throw lastErr || new Error('yt-dlp failed');
 }
 
+// Google Drive share links are what the phone produces ("Share -> copy link").
+// The /view page is HTML; this is the endpoint that actually serves the bytes.
+function driveId(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!/(^|\.)(drive|docs)\.google\.com$/i.test(u.hostname)) return null;
+  const m = /^\/file\/d\/([A-Za-z0-9_-]{10,})/.exec(u.pathname);
+  if (m) return m[1];
+  return u.searchParams.get('id');
+}
+
+async function resolveDrive(url) {
+  const id = driveId(url);
+  if (!id) return null;
+  log(`google drive file id: ${id}`);
+  // confirm=t skips the "Google can't scan this file for viruses" interstitial
+  // that large files get; the endpoint streams the original bytes.
+  return `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
+}
+
 async function resolveTmpfiles(url) {
   const u = new URL(url);
   if (!/^tmpfiles\.org$/i.test(u.hostname)) return null;
@@ -393,7 +417,8 @@ try {
     }
     log(`stitched ${partFiles.length} part(s) into ${OUT}`);
   } else {
-    direct = (await resolveTmpfiles(URL_IN)) || URL_IN;
+    direct =
+      (await resolveTmpfiles(URL_IN)) || (await resolveDrive(URL_IN)) || URL_IN;
     log(`source: ${direct.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
   }
   const size = (ytdlpHit || stitched) ? fs.statSync(OUT).size : await download(direct, OUT);
@@ -404,7 +429,14 @@ try {
   const ascii = head.toString('latin1');
   const looksMp4 = ascii.slice(4, 8) === 'ftyp';
   const looksMkv = ascii.slice(0, 4).toString('hex') === '1a45dfa3';
-  if (!looksMp4 && !looksMkv) throw new Error(`not a video container (${ascii.slice(0, 8).replace(/[^\x20-\x7e]/g, '.')})`);
+  if (!looksMp4 && !looksMkv) {
+    const hint = /^</.test(ascii)
+      ? ' (got an HTML page - for Google Drive set sharing to "Anyone with the link", or use a direct mp4 link)'
+      : '';
+    throw new Error(
+      `not a video container (${ascii.slice(0, 8).replace(/[^\x20-\x7e]/g, '.')})${hint}`
+    );
+  }
   log(`ok: ${OUT} ${(size / 1e6).toFixed(1)} MB`);
 } catch (err) {
   console.error(`fetch-source failed: ${err.message}`);
