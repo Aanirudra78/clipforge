@@ -44,6 +44,11 @@ on:
         required: false
         default: 'on'
         type: string
+      runner:
+        description: 'Runner label (ubuntu-24.04 | ubuntu-24.04-arm)'
+        required: false
+        default: 'ubuntu-24.04-arm'
+        type: string
       source_release_tag:
         description: 'Optional: release tag holding the source, deleted after the render'
         required: false
@@ -65,7 +70,8 @@ permissions:
 jobs:
   render:
     # Pinned: ubuntu-latest is moving to 26.04 during Nov 2026.
-    runs-on: ubuntu-24.04
+    # ARM pool: YouTube's bot checks hit the x64 Azure ranges far harder.
+    runs-on: ${{ inputs.runner || 'ubuntu-24.04-arm' }}
     # A hung apt mirror must never hold the concurrency queue for hours.
     timeout-minutes: 120
     env:
@@ -115,7 +121,11 @@ jobs:
       # version proven on the laptop). ~15 MB, a few seconds to fetch.
       - name: Install yt-dlp
         run: |
-          curl -fsSL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_linux
+          case "${{ runner.arch }}" in
+            ARM64) ASSET=yt-dlp_linux_aarch64 ;;
+            *) ASSET=yt-dlp_linux ;;
+          esac
+          curl -fsSL -o /usr/local/bin/yt-dlp "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/$ASSET"
           chmod +x /usr/local/bin/yt-dlp
           yt-dlp --version
 
