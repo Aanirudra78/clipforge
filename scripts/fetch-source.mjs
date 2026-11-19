@@ -345,20 +345,85 @@ async function download(url, out) {
   throw lastErr;
 }
 
+/**
+ * Cobalt public downloader fallback. GitHub's datacenter IPs are bot-blocked by
+ * YouTube, so yt-dlp cannot fetch video links from CI. Cobalt fetches the video
+ * from ITS OWN host and hands us a short-lived tunnel URL, which works from any
+ * IP. Community instances come and go, so try several in order. This cannot
+ * bypass age verification (that tunnel returns 0 bytes), but it makes ordinary
+ * public YouTube links work without any cookies/setup on the runner.
+ */
+const COBALT_INSTANCES = [
+  'https://co.otomir23.me',
+  'https://cobalt.canine.tools',
+  'https://api-dl.cgm.rs',
+  'https://cobalt-api.alexagirl.studio',
+  'https://coapi.kelig.me',
+  'https://cobalt.wither.ing',
+];
+
+async function downloadWithCobalt(url, out) {
+  for (const host of COBALT_INSTANCES) {
+    let name = host;
+    try { name = new URL(host).hostname; } catch {}
+    try {
+      log(`Cobalt: trying ${name}`);
+      const res = await fetch(`${host}/`, {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json', 'user-agent': UA },
+        body: JSON.stringify({ url, videoQuality: '720', downloadMode: 'auto' }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!res.ok) { log(`Cobalt ${name}: HTTP ${res.status}`); continue; }
+      const j = await res.json();
+      const tunnel = j && (j.url || (j.picker && j.picker[0] && j.picker[0].url));
+      if (!tunnel) {
+        log(`Cobalt ${name}: no stream URL (${j && j.error ? j.error.code : 'unknown response'})`);
+        continue;
+      }
+      log(`Cobalt ${name}: resolved "${String(j.filename || 'video').slice(0, 70)}" - downloading`);
+      const size = await download(tunnel, out);
+      log(`Cobalt: downloaded via ${name}`);
+      return size;
+    } catch (e) {
+      // "file too small" = age-restricted/empty tunnel; try the next instance
+      log(`Cobalt ${name} failed: ${String(e.message || e).slice(0, 140)}`);
+    }
+  }
+  return null;
+}
+
 try {
   let direct = null;
   let ytdlpHit = false;
   let stitched = false;
   if (isSiteUrl(URL_IN)) {
+    log(`video site link: ${URL_IN.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
     const bin = await findYtDlp();
+    let ytErr = null;
     if (bin) {
-      log(`video site link: ${URL_IN.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
-      await downloadWithYtDlp(bin, URL_IN, OUT);
-      ytdlpHit = true;
+      try {
+        await downloadWithYtDlp(bin, URL_IN, OUT);
+        ytdlpHit = true;
+      } catch (e) {
+        ytErr = e;
+        log(`yt-dlp could not fetch this video: ${String(e.message || e).slice(0, 200)}`);
+      }
       // never leave the cookie file lying around
       try { fs.rmSync(path.join(path.dirname(OUT), 'yt-cookies.txt'), { force: true }); } catch {}
     } else {
-      throw new Error('video-site link (YouTube etc.) needs yt-dlp, which is not installed on this runner. Upload the video from your phone or paste a direct mp4 link.');
+      ytErr = new Error('yt-dlp is not installed on this runner');
+    }
+    if (!ytdlpHit) {
+      log('yt-dlp blocked - trying Cobalt public downloader fallback...');
+      const cbSize = await downloadWithCobalt(URL_IN, OUT);
+      if (cbSize) {
+        ytdlpHit = true; // Cobalt already wrote a validated file to OUT
+      } else if (ytErr) {
+        throw ytErr; // keep yt-dlp's more descriptive bot/age error
+      } else {
+        throw new Error('video-site link needs yt-dlp or a working Cobalt instance. Upload the video from your phone or paste a direct mp4 link.');
+      }
     }
   } else if (URL_IN.includes(',')) {
     // The phone page splits uploads over 100 MB into ~95 MB parts (tmpfiles
