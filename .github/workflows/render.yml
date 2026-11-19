@@ -59,6 +59,11 @@ on:
         required: false
         default: '30'
         type: string
+      skip:
+        description: 'Skip the first N top moments (a long video is cut by several runs; run 2 uses 8)'
+        required: false
+        default: '0'
+        type: string
 
 concurrency:
   group: render
@@ -176,11 +181,13 @@ jobs:
           TITLE: ${{ inputs.title }}
           BROLL: ${{ inputs.broll }}
           FPS: ${{ inputs.fps }}
+          SKIP: ${{ inputs.skip }}
         run: |
           node scripts/cloud-render.mjs \
             --src source.mp4 --out out \
             --mode "$MODE" --count "$COUNT" --template "$TEMPLATE" --look "$LOOK" \
-            --music "$MUSIC" --title "$TITLE" --broll "$BROLL" --max-fps "$FPS"
+            --music "$MUSIC" --title "$TITLE" --broll "$BROLL" --max-fps "$FPS" \
+            --skip "${SKIP:-0}"
 
       - name: Notes
         env:
