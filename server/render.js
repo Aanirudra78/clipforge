@@ -468,19 +468,22 @@ export async function renderClip({
   if (facecam && Number.isFinite(facecam.x) && Number.isFinite(facecam.y)) {
     const fw = Math.max(8, (facecam.w || 0.1) * srcW);
     const fh = Math.max(8, (facecam.h || 0.2) * srcH);
-    let side = even(Math.max(fw, fh) * 2.3);
+    // Tight crop around the face centre so it fills the square instead of
+    // floating inside a wide gameplay crop.
+    let side = even(Math.max(fw, fh) * 1.25);
     side = Math.max(80, Math.min(side, even(Math.min(srcW, srcH) * 0.72)));
     const cx = Math.round(facecam.x * srcW);
     const cy = Math.round(facecam.y * srcH);
     const cropX = Math.round(Math.max(0, Math.min(cx - side / 2, srcW - side)));
     const cropY = Math.round(Math.max(0, Math.min(cy - side / 2, srcH - side)));
-    const B = even(Math.min(outW * 0.33, 360));
+    // Big and centred in the blur band; thin neutral outline, no colour pop.
+    const B = even(Math.min(outW * 0.42, 480));
     graph += `[vcF]crop=${side}:${side}:${cropX}:${cropY},scale=${B}:${B}:flags=bicubic,format=yuv420p[fcrop];`;
-    graph += `[fcrop]drawbox=x=0:y=0:w=${B}:h=${B}:color=${accentHex}:t=5[fcb];`;
+    graph += `[fcrop]drawbox=x=0:y=0:w=${B}:h=${B}:color=${accentHex}:t=3[fcb];`;
     const waveTop = outH - even(outH * 0.115);
     const bandTop = yPx + fgH;
     const fy = Math.max(bandTop + 16, waveTop - B - 24);
-    const fx = Math.max(16, outW - B - even(outW * 0.045));
+    const fx = Math.round((outW - B) / 2);
     graph += `[${vLast}][fcb]overlay=x=${fx}:y=${fy}:format=yuv420:eof_action=pass:shortest=0[vfc];`;
     vLast = 'vfc';
     onLog?.(`facecam bubble ${B}px at ${fx},${fy} (crop ${side}px @ ${cropX},${cropY})`);
