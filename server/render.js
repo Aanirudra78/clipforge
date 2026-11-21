@@ -220,7 +220,8 @@ export async function renderClip({
   // Engagement audio tap: the waveform reads the same cut-concatenated audio
   // that becomes the final soundtrack, so the bars stay in sync with the game.
   if (engagement && hasAudio) {
-    graph += `[${audioIn}]asplit=2[engAud][aMain];`;
+    // engAud = bottom waveform, eqAud = soft EQ bars on the card edge.
+    graph += `[${audioIn}]asplit=3[engAud][eqAud][aMain];`;
     audioIn = 'aMain';
   }
 
@@ -447,18 +448,21 @@ export async function renderClip({
     vLast = 'veng';
     onLog?.('engagement: audio waveform in lower band');
 
-    if (pulses.length) {
-      const flash = pulses
-        .map((p) => `between(t,${Math.max(0, p.t - 0.04).toFixed(2)},${(p.t + 0.26).toFixed(2)})`)
-        .join('+');
-      const bw = even(fgW || outW);
-      const bh = even(fgH || outH);
-      const bx = Number.isFinite(xPx) ? Math.round(xPx) : Math.round((outW - bw) / 2);
-      const by = Number.isFinite(yPx) ? Math.round(yPx) : Math.round((outH - bh) / 2);
-      graph += `[${vLast}]drawbox=x=${bx}:y=${by}:w=${bw}:h=${bh}:color=${wColor}@0.9:t=6:enable='${flash}'[vflash];`;
-      vLast = 'vflash';
-      onLog?.(`engagement: impact border on ${pulses.length} peak(s)`);
-    }
+    // Soft EQ bars replace the old full-card strobe: a short, low-opacity bar
+    // strip hugs the bottom edge of the gameplay card and bounces with audio.
+    // It reads as motion, not a flash, so the punch-ins stay the only "hit".
+    const barW = even(fgW || outW);
+    const barH = even(Math.min(32, Math.max(16, outH * 0.016)));
+    const barX = Number.isFinite(xPx) ? Math.round(xPx) : Math.round((outW - barW) / 2);
+    const barY = Number.isFinite(yPx)
+      ? Math.round(yPx + (fgH || outH) - barH - 6)
+      : Math.round(outH - barH - 6);
+    graph += `[eqAud]aresample=44100,volume=3,showfreqs=s=${barW}x${barH}:mode=bar:colors=${wColor}:ascale=cbrt:fscale=lin:cmode=combined:win_size=1024,format=yuv420p,gblur=sigma=2,split=2[eqc][eqm];`;
+    graph += `[eqm]format=gray,lutyuv=y='clip((val-16)*2,0,220)'[eqMask];`;
+    graph += `[eqc][eqMask]alphamerge[eqbars];`;
+    graph += `[${vLast}][eqbars]overlay=x=${barX}:y=${barY}:format=yuv420:eof_action=pass:shortest=0[veq];`;
+    vLast = 'veq';
+    onLog?.('engagement: soft EQ bars on card edge (strobe removed)');
   }
 
   // Facecam bubble: cut a square around the detected YouTuber face and drop it
@@ -547,7 +551,7 @@ export async function renderClip({
         id, source, start, end, crop, template, position, size, accent, title, zoom,
         punch, words, subject, srcW, srcH, hasAudio, cuts, preview, edits, look,
         musicPath, musicBpm, musicGain, musicPulse, broll, punchIns, showBar,
-        onProgress, onLog, retried: true,
+        engagement, facecam, onProgress, onLog, retried: true,
       });
     }
     if (mode === 'center') throw err;
@@ -557,7 +561,7 @@ export async function renderClip({
       id, source, start, end, crop: next, template, position, size, accent, title, zoom,
       punch: 1, words, subject: next === 'blur' ? null : subject, srcW, srcH, hasAudio, cuts, preview, edits, look,
       musicPath, musicBpm, musicGain, musicPulse, broll, punchIns, showBar,
-      onProgress, onLog,
+      engagement, facecam, onProgress, onLog,
     });
   }
 
