@@ -179,13 +179,14 @@ async function consolidateOutput(out) {
  */
 async function downloadWithYtDlp(bin, url, out) {
   let lastErr = null;
-  // A two-hour stream at 720p is ~1.27 GB. The old 1200/600 MB caps aborted a
-  // perfectly healthy download at 99%, and every retry after that made YouTube
-  // more likely to bot-check the runner. GitHub runners have ~14 GB free, so
-  // give the first (cookie + proxy, best-tested) attempt room to finish.
-  const capHigh = Number(process.env.YTDLP_MAX_MB_HIGH) || 4000;
-  const cap720 = Number(process.env.YTDLP_MAX_MB_720) || 3000;
-  const cap480 = Number(process.env.YTDLP_MAX_MB_480) || 1800;
+  // Long live streams are 2-4 GB even at 480p. Fixed caps kept aborting healthy
+  // downloads a few MB short, and every aborted attempt made YouTube more likely
+  // to bot-check the runner. GitHub runners have ~14 GB free, so let the first
+  // (cookie + proxy, best-tested) attempt finish whatever the source size is.
+  // Override with YTDLP_MAX_MB_* only if a runner ever gets tight on disk.
+  const capHigh = Number(process.env.YTDLP_MAX_MB_HIGH) || 12000;
+  const cap720 = Number(process.env.YTDLP_MAX_MB_720) || 8000;
+  const cap480 = Number(process.env.YTDLP_MAX_MB_480) || 6000;
   const tries = MAX_HEIGHT
     ? [{ h: MAX_HEIGHT, size: capHigh }]
     : [{ h: 720, size: cap720 }, { h: 480, size: cap480 }];
