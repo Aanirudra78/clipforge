@@ -118,7 +118,7 @@ export async function renderClip({
   srcW = 1920, srcH = 1080, hasAudio = true, cuts = [], preview = false, edits = {},
   look = 'none', musicPath = null, musicBpm = 0, musicGain = 0.22, musicPulse = true,
   broll = null,
-  punchIns = null, showBar = true, engagement = false,
+  punchIns = null, showBar = true, engagement = false, facecam = null,
   onProgress, onLog, retried = false,
 }) {
   const enc = await videoEncoder();
@@ -209,12 +209,12 @@ export async function renderClip({
     }
     // the concat output is already at FPS, so the branches below need no
     // frame-rate conversion of their own
-    if (needsTwo) graph += `[vc]split=2[vcA][vcB];`;
+    if (needsTwo) graph += facecam ? `[vc]split=3[vcA][vcB][vcF];` : `[vc]split=2[vcA][vcB];`;
     else vA = 'vc';
   } else if (needsTwo) {
-    graph += `[0:v]${pre}fps=${FPS},split=2[vcA][vcB];`;
+    graph += `[0:v]${pre}fps=${FPS},${facecam ? 'split=3[vcA][vcB][vcF]' : 'split=2[vcA][vcB]'};`;
   } else {
-    graph += `[0:v]${pre}fps=${FPS}[vcA];`;
+    graph += facecam ? `[0:v]${pre}fps=${FPS},split=2[vcA][vcF];` : `[0:v]${pre}fps=${FPS}[vcA];`;
   }
 
   // Engagement audio tap: the waveform reads the same cut-concatenated audio
@@ -421,17 +421,19 @@ export async function renderClip({
     vLast = 'vpulse';
   }
 
+  const ACCENT_HEX = {
+    yellow: '0xFFD400', cyan: '0x00E5FF', green: '0x39FF88',
+    pink: '0xFF4D9D', orange: '0xFF8A3D', red: '0xFF3B30',
+    white: '0xFFFFFF', gold: '0xE8C36A',
+  };
+  const accentHex = ACCENT_HEX[accent] || '0x39FF88';
+
   // Engagement layer (gaming): fill the dead blur band with a waveform that
   // dances with the game audio, and strobe an accent border on each impact.
   // Applied AFTER the grade/vignette so the neon stays bright, and just before
   // the caption overlay so type still sits on top and stays readable.
   if (engagement && hasAudio) {
-    const WAVE_COLORS = {
-      yellow: '0xFFD400', cyan: '0x00E5FF', green: '0x39FF88',
-      pink: '0xFF4D9D', orange: '0xFF8A3D', red: '0xFF3B30',
-      white: '0xFFFFFF', gold: '0xE8C36A',
-    };
-    const wColor = WAVE_COLORS[accent] || '0x39FF88';
+    const wColor = accentHex;
     const wW = even(outW * 0.82);
     const wH = even(outH * 0.10);
     const wX = Math.round((outW - wW) / 2);
@@ -457,6 +459,31 @@ export async function renderClip({
       vLast = 'vflash';
       onLog?.(`engagement: impact border on ${pulses.length} peak(s)`);
     }
+  }
+
+  // Facecam bubble: cut a square around the detected YouTuber face and drop it
+  // into the empty blur band, BIG. The blur bed stays exactly as it is — the
+  // square simply sits on top of it. One static crop per clip, so it never
+  // jitters, and the main card still shows the whole game + original facecam.
+  if (facecam && Number.isFinite(facecam.x) && Number.isFinite(facecam.y)) {
+    const fw = Math.max(8, (facecam.w || 0.1) * srcW);
+    const fh = Math.max(8, (facecam.h || 0.2) * srcH);
+    let side = even(Math.max(fw, fh) * 2.3);
+    side = Math.max(80, Math.min(side, even(Math.min(srcW, srcH) * 0.72)));
+    const cx = Math.round(facecam.x * srcW);
+    const cy = Math.round(facecam.y * srcH);
+    const cropX = Math.round(Math.max(0, Math.min(cx - side / 2, srcW - side)));
+    const cropY = Math.round(Math.max(0, Math.min(cy - side / 2, srcH - side)));
+    const B = even(Math.min(outW * 0.33, 360));
+    graph += `[vcF]crop=${side}:${side}:${cropX}:${cropY},scale=${B}:${B}:flags=bicubic,format=yuv420p[fcrop];`;
+    graph += `[fcrop]drawbox=x=0:y=0:w=${B}:h=${B}:color=${accentHex}:t=5[fcb];`;
+    const waveTop = outH - even(outH * 0.115);
+    const bandTop = yPx + fgH;
+    const fy = Math.max(bandTop + 16, waveTop - B - 24);
+    const fx = Math.max(16, outW - B - even(outW * 0.045));
+    graph += `[${vLast}][fcb]overlay=x=${fx}:y=${fy}:format=yuv420:eof_action=pass:shortest=0[vfc];`;
+    vLast = 'vfc';
+    onLog?.(`facecam bubble ${B}px at ${fx},${fy} (crop ${side}px @ ${cropX},${cropY})`);
   }
 
   graph += `[${vLast}]ass=${assName}:fontsdir=../../../assets/fonts:shaping=complex[vout]`;

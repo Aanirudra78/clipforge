@@ -56,6 +56,8 @@ const CAPTIONS = String(args.captions || 'auto').toLowerCase(); // auto | on | o
 // Pure gameplay ASR is usually garbage and burning Groq quota on it slows the
 // render down. Samples / silent gameplay can skip it entirely.
 const SKIP_TRANS = args.transcribe === 'off' || process.env.CF_SKIP_TRANSCRIBE === '1';
+// Facecam bubble: auto shows it only when a small, stable face is found.
+const FACECAM = ['on', 'off', 'auto'].includes(args.facecam) ? args.facecam : 'auto';
 
 const OPT = {
   count: clampInt(args.count, 1, 8, 6),
@@ -77,6 +79,7 @@ const OPT = {
   zoom: 0,
   title: args.title || '',
   broll: BROLL_DEFAULT,
+  facecam: FACECAM,
 };
 
 function clampInt(v, lo, hi, dflt) {
@@ -207,13 +210,65 @@ try {
 
   step('speakers');
   let subject = null;
-  if (OPT.mode !== 'gaming') {
-    // The skin-blob tracker means nothing on gameplay footage; skip it.
+  // Podcasts track the talking head for framing; gaming tracks it only to find
+  // the pinned facecam for the bubble (the main card keeps the whole frame).
+  if (OPT.mode !== 'gaming' || FACECAM !== 'off') {
     const windows = chosen
       .map((c) => ({ start: Math.max(0, c.start - 2), end: c.end + 2 }))
       .sort((a, b) => a.start - b.start);
     subject = await trackSubject(SRC, windows).catch(() => null);
-    if (subject) log(`speaker tracking ${(subject.confidence * 100).toFixed(0)}%`);
+    if (subject) log(`face tracking ${(subject.confidence * 100).toFixed(0)}% overall`);
+  }
+
+  // A pinned facecam is small, edge-mounted and barely moves. Gameplay throws
+  // bigger wandering skin blobs, so check BOTH tracked candidates per second —
+  // the facecam is often the "second" face while a car/explosion wins primary.
+  // Cluster by position first: averaging across a facecam and a nearby HUD
+  // blob produces a fake midpoint that is neither, so the bubble never lands.
+  function facecamFor(c) {
+    if (FACECAM === 'off' || !subject) return null;
+    const ns = subject.nodes.filter((n) => n.t >= c.start && n.t <= c.end);
+    const pts = [];
+    for (const n of ns) {
+      for (const slot of [
+        { x: 'x', y: 'y', w: 'w', h: 'h' },
+        { x: 'x2', y: 'y2', w: 'w2', h: 'h2' },
+      ]) {
+        const p = { x: n[slot.x], y: n[slot.y], w: n[slot.w], h: n[slot.h], hit: n.hit || 0 };
+        if (![p.x, p.y, p.w, p.h].every(Number.isFinite)) continue;
+        if (p.w > 0.32 || p.h > 0.55) continue; // gameplay blobs
+        pts.push(p);
+      }
+    }
+    if (pts.length < 3) return null;
+    const BIN = 0.05;
+    const clusters = new Map();
+    for (const p of pts) {
+      const key = `${Math.round(p.x / BIN)},${Math.round(p.y / BIN)}`;
+      if (!clusters.has(key)) clusters.set(key, []);
+      clusters.get(key).push(p);
+    }
+    const candidates = [];
+    for (const group of clusters.values()) {
+      if (group.length < 3) continue;
+      const med = (k) => {
+        const v = group.map((p) => p[k]).sort((a, b) => a - b);
+        return v[Math.floor(v.length / 2)];
+      };
+      const x = med('x'), y = med('y'), w = med('w'), h = med('h');
+      const drift = group.reduce((s, p) => s + Math.abs(p.x - x) + Math.abs(p.y - y), 0) / group.length;
+      // Per clip: one facecam-free window must not disable every other clip.
+      const conf = group.reduce((s, p) => s + p.hit, 0) / group.length;
+      const corner = Math.abs(x - 0.5) + Math.abs(y - 0.5);
+      const usable = conf >= 0.5 && drift < 0.12 && corner >= 0.45;
+      const score = group.length * 0.15 + corner * 0.6 + conf * 0.3 - drift * 2;
+      candidates.push({ x, y, w, h, confidence: conf, drift, corner, usable, score });
+    }
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => b.score - a.score);
+    const best = candidates[0];
+    if (FACECAM === 'auto' && !best.usable) return null;
+    return best;
   }
 
   step('render');
@@ -239,6 +294,8 @@ try {
     });
     const plan = planCuts({ words, start: c.start, end: c.end, silence: audio.silence });
     log(`clip ${i + 1}/${chosen.length}: ${c.start.toFixed(1)}-${c.end.toFixed(1)}s (${framing.reason})`);
+    const fc = facecamFor(c);
+    if (fc) log(`clip ${i + 1} facecam bubble at ${(fc.x * 100).toFixed(0)}%,${(fc.y * 100).toFixed(0)}% (drift ${fc.drift.toFixed(3)})`);
 
     let broll = null;
     if (OPT.broll) {
@@ -272,6 +329,7 @@ try {
       musicPulse: true, broll,
       punchIns: (c.peaks || []).map((t) => ({ t: t - c.start })),
       engagement: MODE === 'gaming',
+      facecam: fc,
       showBar: captions,
       onLog: log,
       onProgress: () => {},
@@ -291,6 +349,7 @@ try {
       framing: out.framing ?? framing.reason,
       mode: out.mode || '', encoder: out.encoder || '',
       peaks: c.peaks || [],
+      facecam: Boolean(fc),
       captions: words.length > 0,
       visuals: (out.broll?.assets || 0) + (out.broll?.cards || 0),
       broll: (broll || []).map((r) => ({ query: r.query, label: r.label, kind: r.kind, provider: r.provider })),

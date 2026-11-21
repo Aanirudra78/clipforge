@@ -156,7 +156,9 @@ export async function trackSubject(file, windows, onProgress) {
       const score = Math.pow(area, 0.85) * vertical * shape * bright * (0.55 + 0.45 * solid);
 
       if (!best || score > best.score) best = { score, x: cx, y: cy, area, bw: w / W, bh: h / H };
-      if (area >= 36 && w >= 5 && h >= 5) faces.push({ x: cx, y: cy, area });
+      if (area >= 36 && w >= 5 && h >= 5) {
+        faces.push({ x: cx, y: cy, area, bw: w / W, bh: h / H });
+      }
     }
     // two talking heads: a second, comparable face away from the best one
     let second = null;
@@ -167,7 +169,11 @@ export async function trackSubject(file, windows, onProgress) {
         if (!second || f.area > second.area) second = f;
       }
     }
-    return best ? { ...best, two: Boolean(second), x2: second ? second.x : null } : null;
+    return best ? {
+      ...best,
+      two: Boolean(second),
+      ...(second ? { x2: second.x, y2: second.y, bw2: second.bw, bh2: second.bh } : {}),
+    } : null;
   }
 
   for (let i = 0; i < ranges.length; i++) {
@@ -191,6 +197,9 @@ export async function trackSubject(file, windows, onProgress) {
             x: blob ? blob.x : 0.5,
             y: blob ? blob.y : 0.42,
             x2: blob && Number.isFinite(blob.x2) ? blob.x2 : null,
+            y2: blob && Number.isFinite(blob.y2) ? blob.y2 : null,
+            w2: blob && Number.isFinite(blob.bw2) ? blob.bw2 : null,
+            h2: blob && Number.isFinite(blob.bh2) ? blob.bh2 : null,
             w: blob ? blob.bw : null,
             h: blob ? blob.bh : null,
             ok: Boolean(blob),
@@ -216,10 +225,19 @@ export async function trackSubject(file, windows, onProgress) {
       has = true;
     }
     const k = Math.floor(s.t);
-    const b = buckets.get(k) || { x: 0, y: 0, two: 0, w: 0, h: 0, x2: 0, x2n: 0, hit: 0, n: 0 };
+    const b = buckets.get(k) || {
+      x: 0, y: 0, two: 0, w: 0, h: 0,
+      x2: 0, y2: 0, w2: 0, h2: 0, x2n: 0, hit: 0, n: 0,
+    };
     b.x += emaX; b.y += emaY; b.two += s.two ? 1 : 0; b.n++;
     if (s.ok && Number.isFinite(s.w)) { b.w += s.w; b.h += s.h; b.hit++; }
-    if (Number.isFinite(s.x2)) { b.x2 += s.x2; b.x2n++; }
+    if (Number.isFinite(s.x2)) {
+      b.x2 += s.x2;
+      if (Number.isFinite(s.y2)) b.y2 += s.y2;
+      if (Number.isFinite(s.w2)) b.w2 += s.w2;
+      if (Number.isFinite(s.h2)) b.h2 += s.h2;
+      b.x2n++;
+    }
     buckets.set(k, b);
   }
   for (const [k, b] of [...buckets.entries()].sort((a, b2) => a[0] - b2[0])) {
@@ -233,8 +251,14 @@ export async function trackSubject(file, windows, onProgress) {
         w: Math.round((b.w / b.hit) * 1000) / 1000,
         h: Math.round((b.h / b.hit) * 1000) / 1000,
       } : {}),
-      // second head only when it persists through most of this second
-      ...(b.x2n >= Math.max(1, b.n * 0.4) ? { x2: Math.round((b.x2 / b.x2n) * 1000) / 1000 } : {}),
+      // second head only when it persists through most of this second; keep its
+      // full geometry so a pinned facecam can be told apart from gameplay blobs
+      ...(b.x2n >= Math.max(1, b.n * 0.4) ? {
+        x2: Math.round((b.x2 / b.x2n) * 1000) / 1000,
+        ...(b.y2 ? { y2: Math.round((b.y2 / b.x2n) * 1000) / 1000 } : {}),
+        ...(b.w2 ? { w2: Math.round((b.w2 / b.x2n) * 1000) / 1000 } : {}),
+        ...(b.h2 ? { h2: Math.round((b.h2 / b.x2n) * 1000) / 1000 } : {}),
+      } : {}),
     });
   }
   const confidence = samples.length ? samples.filter((s) => s.ok).length / samples.length : 0;

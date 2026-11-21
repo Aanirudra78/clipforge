@@ -184,6 +184,16 @@
         </select>
       </div>
     </div>
+    <div class="row">
+      <div>
+        <label for="facecam">Facecam bubble</label>
+        <select id="facecam">
+          <option value="auto" selected>Auto (if a face is found)</option>
+          <option value="on">Always on</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+    </div>
     <label for="look">Colour look</label>
     <select id="look">
       <option value="none" selected>None (untouched)</option>
@@ -559,6 +569,7 @@
       music: $('music').value,
       title: $('title').value.trim(),
       broll: $('broll').value,
+      facecam: $('facecam').value,
       fps: $('fps').value,
       // A release-hosted source carries its own tag and is auto-deleted by the
       // workflow; the manual tag box only applies to link-based sources.

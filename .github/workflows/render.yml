@@ -44,6 +44,11 @@ on:
         required: false
         default: 'on'
         type: string
+      facecam:
+        description: 'Facecam bubble in the blur band (auto | on | off)'
+        required: false
+        default: 'auto'
+        type: string
       runner:
         description: 'Runner label (ubuntu-24.04 | ubuntu-24.04-arm)'
         required: false
@@ -180,6 +185,7 @@ jobs:
           MUSIC: ${{ inputs.music }}
           TITLE: ${{ inputs.title }}
           BROLL: ${{ inputs.broll }}
+          FACECAM: ${{ inputs.facecam }}
           FPS: ${{ inputs.fps }}
           SKIP: ${{ inputs.skip }}
         run: |
@@ -187,7 +193,7 @@ jobs:
             --src source.mp4 --out out \
             --mode "$MODE" --count "$COUNT" --template "$TEMPLATE" --look "$LOOK" \
             --music "$MUSIC" --title "$TITLE" --broll "$BROLL" --max-fps "$FPS" \
-            --skip "${SKIP:-0}"
+            --facecam "${FACECAM:-auto}" --skip "${SKIP:-0}"
 
       - name: Notes
         env:
