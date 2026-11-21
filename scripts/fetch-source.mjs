@@ -51,6 +51,34 @@ function isSiteUrl(u) {
   } catch { return false; }
 }
 
+/**
+ * YouTube serves one video at /watch, /live, /shorts, /embed and youtu.be.
+ * Feed yt-dlp the canonical watch URL: /live links occasionally resolve to a
+ * live-only format set ("Requested format is not available") even after the
+ * broadcast has ended, and tracking params (?si=...) change nothing but do
+ * make the same video look like a different source upstream.
+ */
+function canonicalVideoUrl(u) {
+  try {
+    const parsed = new URL(u);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    let id = '';
+    if (host === 'youtu.be') id = parsed.pathname.slice(1).split('/')[0];
+    else if (/(^|\.)youtube\.com$/.test(host)) {
+      const m = /^\/(?:live|shorts|embed|v)\/([^/?#]+)/.exec(parsed.pathname);
+      id = m ? m[1] : parsed.searchParams.get('v') || '';
+    }
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return u;
+    const out = new URL('https://www.youtube.com/watch');
+    out.searchParams.set('v', id);
+    const t = parsed.searchParams.get('t');
+    if (t) out.searchParams.set('t', t);
+    return out.toString();
+  } catch {
+    return u;
+  }
+}
+
 function findYtDlp() {
   const bin = process.env.YTDLP_PATH || 'yt-dlp';
   return new Promise((resolve) => {
@@ -151,9 +179,16 @@ async function consolidateOutput(out) {
  */
 async function downloadWithYtDlp(bin, url, out) {
   let lastErr = null;
+  // A two-hour stream at 720p is ~1.27 GB. The old 1200/600 MB caps aborted a
+  // perfectly healthy download at 99%, and every retry after that made YouTube
+  // more likely to bot-check the runner. GitHub runners have ~14 GB free, so
+  // give the first (cookie + proxy, best-tested) attempt room to finish.
+  const capHigh = Number(process.env.YTDLP_MAX_MB_HIGH) || 4000;
+  const cap720 = Number(process.env.YTDLP_MAX_MB_720) || 3000;
+  const cap480 = Number(process.env.YTDLP_MAX_MB_480) || 1800;
   const tries = MAX_HEIGHT
-    ? [{ h: MAX_HEIGHT, size: 1500 }]
-    : [{ h: 720, size: 1200 }, { h: 480, size: 600 }];
+    ? [{ h: MAX_HEIGHT, size: capHigh }]
+    : [{ h: 720, size: cap720 }, { h: 480, size: cap480 }];
   // Keep this list SHORT. YouTube treats a burst of client switches from one IP
   // as bot traffic: 18 attempts in five minutes used to get the whole runner
   // range throttled for hours. Three clients, one cookie mode, human-ish pauses.
@@ -380,8 +415,10 @@ try {
   if (isSiteUrl(URL_IN)) {
     const bin = await findYtDlp();
     if (bin) {
+      const SITE_URL = canonicalVideoUrl(URL_IN);
       log(`video site link: ${URL_IN.replace(/[?&](token|sig|jwt)=[^&]+/g, '$1=***')}`);
-      await downloadWithYtDlp(bin, URL_IN, OUT);
+      if (SITE_URL !== URL_IN) log(`canonical url: ${SITE_URL}`);
+      await downloadWithYtDlp(bin, SITE_URL, OUT);
       ytdlpHit = true;
       // never leave the cookie file lying around
       try { fs.rmSync(path.join(path.dirname(OUT), 'yt-cookies.txt'), { force: true }); } catch {}
