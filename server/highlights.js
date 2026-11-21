@@ -106,16 +106,24 @@ export function pickHighlights({
     if (i + radius < n && soft[i + radius] > c) continue;
     peaks.push({ i, t: i * dt, c });
   }
-  peaks.sort((a, b) => b.c - a.c);
+  // A steady loud soundtrack is not a highlight. Prefer peaks that sit near
+  // fast cutting (a kill / explosion usually lands right on an edit); a pure
+  // "loud but boring" boom drifts down the ranking without being discarded,
+  // which keeps short/quiet streams from ending up with zero clips.
+  peaks.sort((a, b) => {
+    const sa = a.c + Math.min(3, cutRate(a.t - 6, a.t + 6)) * 1.2;
+    const sb = b.c + Math.min(3, cutRate(b.t - 6, b.t + 6)) * 1.2;
+    return sb - sa;
+  });
 
   const snapStart = (t, len) => {
     let out = t;
     const cut = nearestSorted(cuts, out);
-    if (cut != null && Math.abs(cut - out) <= 1.5) out = cut;
+    if (cut != null && Math.abs(cut - out) <= 0.8) out = cut;
     else {
       // start on the end of a silent stretch rather than in its middle
       const sil = gapEnds.reduce((best, s) => (
-        s.end >= out - 1.2 && s.end <= out + 1.2 && (!best || Math.abs(s.end - out) < Math.abs(best - out)) ? s.end : best
+        s.end >= out - 0.7 && s.end <= out + 0.7 && (!best || Math.abs(s.end - out) < Math.abs(best - out)) ? s.end : best
       ), null);
       if (sil != null) out = sil;
       else out += len * 0.06;             // tiny trim keeps the first hit audible
@@ -124,9 +132,9 @@ export function pickHighlights({
   };
   const snapEnd = (t) => {
     const cut = nearestSorted(cuts, t);
-    if (cut != null && Math.abs(cut - t) <= 1.5) return cut;
+    if (cut != null && Math.abs(cut - t) <= 0.8) return cut;
     const sil = gapEnds.reduce((best, s) => (
-      s.start <= t + 1.2 && s.start >= t - 1.2 && (!best || Math.abs(s.start - t) < Math.abs(best - t)) ? s.start : best
+      s.start <= t + 0.7 && s.start >= t - 0.7 && (!best || Math.abs(s.start - t) < Math.abs(best - t)) ? s.start : best
     ), null);
     if (sil != null) return sil;
     return t;

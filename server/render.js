@@ -118,7 +118,7 @@ export async function renderClip({
   srcW = 1920, srcH = 1080, hasAudio = true, cuts = [], preview = false, edits = {},
   look = 'none', musicPath = null, musicBpm = 0, musicGain = 0.22, musicPulse = true,
   broll = null,
-  punchIns = null, showBar = true,
+  punchIns = null, showBar = true, engagement = false,
   onProgress, onLog, retried = false,
 }) {
   const enc = await videoEncoder();
@@ -215,6 +215,13 @@ export async function renderClip({
     graph += `[0:v]${pre}fps=${FPS},split=2[vcA][vcB];`;
   } else {
     graph += `[0:v]${pre}fps=${FPS}[vcA];`;
+  }
+
+  // Engagement audio tap: the waveform reads the same cut-concatenated audio
+  // that becomes the final soundtrack, so the bars stay in sync with the game.
+  if (engagement && hasAudio) {
+    graph += `[${audioIn}]asplit=2[engAud][aMain];`;
+    audioIn = 'aMain';
   }
 
   if (mode === 'punch' || mode === 'blur') {
@@ -357,8 +364,8 @@ export async function renderClip({
     .filter((p) => p && Number.isFinite(p.t) && p.t >= -0.3 && p.t <= dur)
     .slice(0, 4);
   if (pulses.length && (mode === 'blur' || mode === 'center')) {
-    const AMP = 0.14;
-    const K = 4.5;
+    const AMP = 0.20;
+    const K = 6.5;
     const t = (p) => Math.max(0, p.t).toFixed(2);
     const expr = pulses
       .map((p) => `if(gte(on/${FPS},${t(p)}),${AMP.toFixed(3)}*exp(-${K}*(on/${FPS}-${t(p)})),0)`)
@@ -412,6 +419,44 @@ export async function renderClip({
     const beat = (60 / bpm).toFixed(4);
     graph += `[${vLast}]eq=brightness='0.030*exp(-12*mod(t,${beat}))':eval=frame[vpulse];`;
     vLast = 'vpulse';
+  }
+
+  // Engagement layer (gaming): fill the dead blur band with a waveform that
+  // dances with the game audio, and strobe an accent border on each impact.
+  // Applied AFTER the grade/vignette so the neon stays bright, and just before
+  // the caption overlay so type still sits on top and stays readable.
+  if (engagement && hasAudio) {
+    const WAVE_COLORS = {
+      yellow: '0xFFD400', cyan: '0x00E5FF', green: '0x39FF88',
+      pink: '0xFF4D9D', orange: '0xFF8A3D', red: '0xFF3B30',
+      white: '0xFFFFFF', gold: '0xE8C36A',
+    };
+    const wColor = WAVE_COLORS[accent] || '0x39FF88';
+    const wW = even(outW * 0.82);
+    const wH = even(outH * 0.10);
+    const wX = Math.round((outW - wW) / 2);
+    const wY = outH - even(outH * 0.115);
+    // cline alone is a 1px hairline; a small blur turns it into a glowing neon
+    // band that actually reads on a phone. log scale keeps quiet passages alive.
+    graph += `[engAud]aresample=44100,showwaves=size=${wW}x${wH}:mode=cline:colors=${wColor}:scale=log:draw=full,format=yuv420p,gblur=sigma=4,split=2[wc][wm];`;
+    graph += `[wm]format=gray,lutyuv=y='clip((val-16)*4,0,255)'[waveMask];`;
+    graph += `[wc][waveMask]alphamerge[wave];`;
+    graph += `[${vLast}][wave]overlay=x=${wX}:y=${wY}:format=yuv420:eof_action=pass:shortest=0[veng];`;
+    vLast = 'veng';
+    onLog?.('engagement: audio waveform in lower band');
+
+    if (pulses.length) {
+      const flash = pulses
+        .map((p) => `between(t,${Math.max(0, p.t - 0.04).toFixed(2)},${(p.t + 0.26).toFixed(2)})`)
+        .join('+');
+      const bw = even(fgW || outW);
+      const bh = even(fgH || outH);
+      const bx = Number.isFinite(xPx) ? Math.round(xPx) : Math.round((outW - bw) / 2);
+      const by = Number.isFinite(yPx) ? Math.round(yPx) : Math.round((outH - bh) / 2);
+      graph += `[${vLast}]drawbox=x=${bx}:y=${by}:w=${bw}:h=${bh}:color=${wColor}@0.9:t=6:enable='${flash}'[vflash];`;
+      vLast = 'vflash';
+      onLog?.(`engagement: impact border on ${pulses.length} peak(s)`);
+    }
   }
 
   graph += `[${vLast}]ass=${assName}:fontsdir=../../../assets/fonts:shaping=complex[vout]`;

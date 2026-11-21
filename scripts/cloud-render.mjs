@@ -26,7 +26,7 @@ import { planCuts } from '../server/cuts.js';
 import { BROLL, setFps } from '../server/config.js';
 import { planBroll, brollHealth } from '../server/broll/index.js';
 import { resolveMusic } from '../server/music/index.js';
-import { lookMusic } from '../server/looks/index.js';
+import { lookMusic, lookCaption } from '../server/looks/index.js';
 
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, a, i, all) => {
@@ -53,6 +53,9 @@ const MODE = String(args.mode || 'podcast').toLowerCase() === 'gaming' ? 'gaming
 const MUSIC_DEFAULT = MODE === 'gaming' ? 'none' : 'auto';
 const BROLL_DEFAULT = MODE === 'gaming' ? false : (args.broll !== 'off' && BROLL);
 const CAPTIONS = String(args.captions || 'auto').toLowerCase(); // auto | on | off
+// Pure gameplay ASR is usually garbage and burning Groq quota on it slows the
+// render down. Samples / silent gameplay can skip it entirely.
+const SKIP_TRANS = args.transcribe === 'off' || process.env.CF_SKIP_TRANSCRIBE === '1';
 
 const OPT = {
   count: clampInt(args.count, 1, 8, 6),
@@ -61,7 +64,8 @@ const OPT = {
   skip: clampInt(args.skip, 0, 500, 0),
   mode: MODE,
   template: args.template || 'pop',
-  accent: args.accent || 'yellow',
+  // Follow the look's palette so the waveform / impact border match the grade.
+  accent: args.accent || lookCaption(args.look || 'none')?.accent || 'yellow',
   look: args.look || 'none',
   music: args.music || MUSIC_DEFAULT,
   musicTrack: args.musicTrack || '',
@@ -113,7 +117,7 @@ try {
   let transcript = { words: [], text: '', source: 'none' };
   // Groq's free tier rate-limits hard; a 40-minute podcast can hit 429 halfway
   // through the chunks. Back off and try the whole file again before giving up.
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= (SKIP_TRANS ? 0 : 3); attempt++) {
     try {
       transcript = await transcribe(SRC, {
         onLog: log,
@@ -157,7 +161,7 @@ try {
     const hl = pickHighlights({
       energy: audio.energy, step: audio.step, silence: audio.silence, scenes,
       duration: meta.duration, count: OPT.count, skip: OPT.skip,
-      targetLen: clampInt(args.len ?? args['clip-len'], 8, 45, 20), pad: 2,
+      targetLen: clampInt(args.len ?? args['clip-len'], 8, 45, 11), pad: 2,
     });
     chosen = hl.map((c) => ({ ...c, source: 'audio', hook: '' }));
     log(`${chosen.length} action moments picked from audio peaks`);
@@ -267,6 +271,7 @@ try {
       musicPath: music?.path, musicBpm: music?.bpm || 0, musicGain: OPT.musicGain,
       musicPulse: true, broll,
       punchIns: (c.peaks || []).map((t) => ({ t: t - c.start })),
+      engagement: MODE === 'gaming',
       showBar: captions,
       onLog: log,
       onProgress: () => {},
