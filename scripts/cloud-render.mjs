@@ -158,13 +158,17 @@ try {
   let chosen = [];
   let sentenceCount = 0;
   if (OPT.mode === 'gaming') {
-    // The transcript still runs (facecam commentary gets captions), but the
-    // SELECTION ignores it: highlights are loudness-vs-neighbourhood peaks plus
-    // scene-cut density, snapped to cuts/silence, 2 s padded.
+    // Selection ignores the transcript: each clip follows one loudness burst
+    // (kill/explosion/scream) and ends when that burst dies, so lengths vary
+    // with the action instead of being one fixed 15 s box. Edges still snap to
+    // scene cuts / silence.
     const hl = pickHighlights({
       energy: audio.energy, step: audio.step, silence: audio.silence, scenes,
       duration: meta.duration, count: OPT.count, skip: OPT.skip,
-      targetLen: clampInt(args.len ?? args['clip-len'], 8, 45, 11), pad: 2,
+      targetLen: clampInt(args.len ?? args['clip-len'], 6, 30, 10),
+      minLen: clampInt(args['min-len'], 5, 60, 7),
+      maxLen: clampInt(args['max-len'], 8, 90, 20),
+      pad: 2,
     });
     chosen = hl.map((c) => ({ ...c, source: 'audio', hook: '' }));
     log(`${chosen.length} action moments picked from audio peaks`);

@@ -11,7 +11,8 @@
  *   1. smooth the RMS energy to 1 s,
  *   2. subtract the 60 s neighbourhood median-ish mean → local "contrast",
  *   3. every local maximum of that contrast is a candidate peak,
- *   4. grow a window around the peak (2 s pre/post padding by default),
+ *   4. follow that burst until it dies (short punch or long streak, not a
+ *      fixed 15 s box),
  *   5. snap the edges to scene cuts / silence so a clip never starts mid-swipe,
  *   6. rank by contrast + cut density, enforce spacing and overlap.
  *
@@ -156,15 +157,61 @@ export function pickHighlights({
     || (start < c.end + gap && end > c.end)
   ));
 
+  // Follow the loudness burst around a peak instead of stamping a fixed box.
+  // One gunshot -> a short punch; a multi-kill streak stays long enough to read
+  // as one moment. `targetLen` is only the centre of gravity, not a hard rule.
+  const burstWindow = (p) => {
+    const idx = clamp(Math.round(p.t / dt), 0, n - 1);
+    const floor = Math.max(0.3, p.c * 0.4);
+    const back = clamp(targetLen * 0.55, 3, 8);
+    const fwd = clamp(targetLen * 0.75, 4, 10);
+    let a = idx;
+    while (a > 0 && (idx - a) * dt < back && soft[a - 1] >= floor) a--;
+    let b = idx;
+    while (b < n - 1 && (b - idx) * dt < fwd && soft[b + 1] >= floor) b++;
+    // Count distinct HITS, not every local maximum in a loud section: two
+    // peaks 200 ms apart are one explosion, not a two-kill streak.
+    const strong = p.c * 0.6;
+    const hits = peaks
+      .filter((q) => q.t >= a * dt && q.t <= b * dt && q.c >= strong)
+      .sort((x, y) => x.t - y.t);
+    let inBurst = 0;
+    let lastHit = -99;
+    for (const q of hits) {
+      if (q.t - lastHit >= 2.5) { inBurst++; lastHit = q.t; }
+    }
+    let start = a * dt - Math.min(pad, 0.9);
+    let end = b * dt + Math.min(pad, 1.3);
+    const wanted = clamp(
+      targetLen + Math.min(5, Math.max(0, inBurst - 1) * 2.2) + Math.min(3, p.c * 0.35),
+      minLen, maxLen,
+    );
+    const raw = end - start;
+    if (raw < wanted) {
+      const grow = wanted - raw;
+      start -= grow * 0.35;
+      end += grow * 0.65;
+    } else if (raw > maxLen) {
+      // Keep the biggest moment at ~40% in, trim the long quiet tail.
+      start = p.t - maxLen * 0.4;
+      end = start + maxLen;
+    }
+    return { start, end, inBurst };
+  };
+
   const tryTake = (list, gap) => {
     for (const p of list) {
       if (chosen.length + reserved.length >= want) break;
-      const len = clamp(targetLen + 2 * pad, minLen, maxLen);
-      let start = snapStart(p.t - len * 0.45 - pad, len);
+      const burst = burstWindow(p);
+      let start = snapStart(burst.start, burst.end - burst.start);
       start = clamp(start, 0, Math.max(0, duration - minLen));
-      let end = snapEnd(start + len);
+      let end = snapEnd(burst.end);
       if (end - start < minLen) end = Math.min(duration, start + minLen);
-      if (end > duration) { end = duration; start = Math.max(0, end - minLen); }
+      if (end - start > maxLen) end = start + maxLen;
+      if (end > duration) {
+        end = duration;
+        start = Math.max(0, end - Math.min(maxLen, Math.max(minLen, end - start)));
+      }
       if (end - start < 5) continue;
       if (taken(start, end, gap)) continue;
       const rate = cutRate(start, end);
@@ -173,9 +220,10 @@ export function pickHighlights({
         end: Math.round(end * 100) / 100,
         peak: Math.round(p.t * 100) / 100,
         peaks: [],
-        score: Math.round((p.c + Math.min(3, rate) * 1.5) * 10) / 10,
+        score: Math.round((p.c + Math.min(3, rate) * 1.5 + Math.min(2, burst.inBurst * 0.4)) * 10) / 10,
         boost: p.c,
         rate,
+        inBurst: burst.inBurst,
       };
       if (reserved.length < skip) reserved.push(item);
       else chosen.push(item);
