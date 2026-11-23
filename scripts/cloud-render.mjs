@@ -58,6 +58,19 @@ const CAPTIONS = String(args.captions || 'auto').toLowerCase(); // auto | on | o
 const SKIP_TRANS = args.transcribe === 'off' || process.env.CF_SKIP_TRANSCRIBE === '1';
 // Facecam bubble: auto shows it only when a small, stable face is found.
 const FACECAM = ['on', 'off', 'auto'].includes(args.facecam) ? args.facecam : 'auto';
+// Manual facecam position. Streams put the webcam dead centre UNDER the game,
+// and a corner-only heuristic can never find that — so a preset is used
+// verbatim for EVERY clip: one lock, one crop, no per-clip guessing.
+const FACE_POS = (() => {
+  const v = String(args['facecam-pos'] ?? args.facecamPos ?? 'auto').toLowerCase();
+  return ['auto', 'tl', 'tr', 'bl', 'br', 'bc'].includes(v) ? v : 'auto';
+})();
+const FACE_POS_Y = Number(args['facecam-y'] ?? args.facecamY);
+const FACE_PX = clampInt(args['facecam-px'] ?? args.facecamPx, 320, 640, 500);
+const FACE_SIDE = (() => {
+  const n = Number(args['facecam-side'] ?? args.facecamSide);
+  return Number.isFinite(n) ? Math.min(0.6, Math.max(0.16, n)) : 0.34;
+})();
 
 const OPT = {
   count: clampInt(args.count, 1, 8, 6),
@@ -80,6 +93,8 @@ const OPT = {
   title: args.title || '',
   broll: BROLL_DEFAULT,
   facecam: FACECAM,
+  facecamPos: FACE_POS,
+  facecamPx: FACE_PX,
 };
 
 function clampInt(v, lo, hi, dflt) {
@@ -216,7 +231,9 @@ try {
   let subject = null;
   // Podcasts track the talking head for framing; gaming tracks it only to find
   // the pinned facecam for the bubble (the main card keeps the whole frame).
-  if (OPT.mode !== 'gaming' || FACECAM !== 'off') {
+  // A manual preset already knows where the facecam is, so skip the whole pass.
+  const needTrack = OPT.mode !== 'gaming' || (FACECAM !== 'off' && FACE_POS === 'auto');
+  if (needTrack) {
     const windows = chosen
       .map((c) => ({ start: Math.max(0, c.start - 2), end: c.end + 2 }))
       .sort((a, b) => a.start - b.start);
@@ -224,16 +241,37 @@ try {
     if (subject) log(`face tracking ${(subject.confidence * 100).toFixed(0)}% overall`);
   }
 
-  // A pinned facecam is small, edge-mounted and barely moves. Gameplay throws
-  // bigger wandering skin blobs, so check BOTH tracked candidates per second —
-  // the facecam is often the "second" face while a car/explosion wins primary.
-  // Cluster by position first: averaging across a facecam and a nearby HUD
-  // blob produces a fake midpoint that is neither, so the bubble never lands.
-  function facecamFor(c) {
-    if (FACECAM === 'off' || !subject) return null;
-    const ns = subject.nodes.filter((n) => n.t >= c.start && n.t <= c.end);
+  // ---- facecam lock (ONE decision for the whole video) ----
+  // The old code re-detected per clip. A clip with no facecam-like blob then
+  // grabbed whatever skin patch the game screen offered and cut THAT into the
+  // bubble. Now the crop is decided once and reused by every clip, so a wrong
+  // region is impossible by construction; if nothing can be locked, no bubble
+  // is drawn at all.
+  const PRESET_POS = {
+    tl: { x: 0.18, y: 0.18 },
+    tr: { x: 0.82, y: 0.18 },
+    bl: { x: 0.18, y: 0.82 },
+    br: { x: 0.82, y: 0.82 },
+    bc: { x: 0.5, y: 0.86 },
+  };
+
+  function presetLock() {
+    const p = PRESET_POS[FACE_POS];
+    if (!p) return null;
+    return {
+      x: p.x,
+      y: Number.isFinite(FACE_POS_Y) ? FACE_POS_Y : p.y,
+      side: FACE_SIDE,
+      source: `preset:${FACE_POS}`,
+      drift: 0,
+      confidence: 1,
+    };
+  }
+
+  function autoLock() {
+    if (!subject?.nodes?.length) return null;
     const pts = [];
-    for (const n of ns) {
+    for (const n of subject.nodes) {
       for (const slot of [
         { x: 'x', y: 'y', w: 'w', h: 'h' },
         { x: 'x2', y: 'y2', w: 'w2', h: 'h2' },
@@ -244,35 +282,44 @@ try {
         pts.push(p);
       }
     }
-    if (pts.length < 3) return null;
-    const BIN = 0.05;
+    if (pts.length < 8) return null;
+    const BIN = 0.06;
     const clusters = new Map();
     for (const p of pts) {
       const key = `${Math.round(p.x / BIN)},${Math.round(p.y / BIN)}`;
       if (!clusters.has(key)) clusters.set(key, []);
       clusters.get(key).push(p);
     }
-    const candidates = [];
+    // A real facecam is the region that shows up in most of the video and barely
+    // moves. Corner-ness is deliberately NOT required: bottom-centre is legal.
+    let best = null;
     for (const group of clusters.values()) {
-      if (group.length < 3) continue;
+      if (group.length < Math.max(8, pts.length * 0.25)) continue;
       const med = (k) => {
         const v = group.map((p) => p[k]).sort((a, b) => a - b);
         return v[Math.floor(v.length / 2)];
       };
       const x = med('x'), y = med('y'), w = med('w'), h = med('h');
       const drift = group.reduce((s, p) => s + Math.abs(p.x - x) + Math.abs(p.y - y), 0) / group.length;
-      // Per clip: one facecam-free window must not disable every other clip.
+      if (drift > 0.06) continue;
       const conf = group.reduce((s, p) => s + p.hit, 0) / group.length;
-      const corner = Math.abs(x - 0.5) + Math.abs(y - 0.5);
-      const usable = conf >= 0.5 && drift < 0.12 && corner >= 0.45;
-      const score = group.length * 0.15 + corner * 0.6 + conf * 0.3 - drift * 2;
-      candidates.push({ x, y, w, h, confidence: conf, drift, corner, usable, score });
+      const cover = group.length / pts.length;
+      const score = cover * 2 + conf - drift * 4;
+      if (!best || score > best.score) best = { x, y, w, h, drift, confidence: conf, cover, score };
     }
-    if (!candidates.length) return null;
-    candidates.sort((a, b) => b.score - a.score);
-    const best = candidates[0];
-    if (FACECAM === 'auto' && !best.usable) return null;
-    return best;
+    if (!best || best.confidence < 0.45) return null;
+    return { ...best, source: 'auto', side: null };
+  }
+
+  let FACE_LOCK = null;
+  if (FACECAM !== 'off') {
+    FACE_LOCK = FACE_POS !== 'auto' ? presetLock() : autoLock();
+    if (FACE_LOCK) {
+      log(`facecam lock ${FACE_LOCK.source} at ${(FACE_LOCK.x * 100).toFixed(0)}%,${(FACE_LOCK.y * 100).toFixed(0)}%`
+        + `${FACE_LOCK.side ? ` crop ${(FACE_LOCK.side * 100).toFixed(0)}%` : ''} · ${FACE_PX}px bubble`);
+    } else {
+      log('facecam not locked — no bubble (pass --facecam-pos bc to force bottom centre)');
+    }
   }
 
   step('render');
@@ -298,8 +345,9 @@ try {
     });
     const plan = planCuts({ words, start: c.start, end: c.end, silence: audio.silence });
     log(`clip ${i + 1}/${chosen.length}: ${c.start.toFixed(1)}-${c.end.toFixed(1)}s (${framing.reason})`);
-    const fc = facecamFor(c);
-    if (fc) log(`clip ${i + 1} facecam bubble at ${(fc.x * 100).toFixed(0)}%,${(fc.y * 100).toFixed(0)}% (drift ${fc.drift.toFixed(3)})`);
+    // Same lock for every clip: no per-clip detection, so the bubble can never
+    // come from a different (wrong) part of the screen.
+    const fc = FACE_LOCK;
 
     let broll = null;
     if (OPT.broll) {
@@ -334,6 +382,7 @@ try {
       punchIns: (c.peaks || []).map((t) => ({ t: t - c.start })),
       engagement: MODE === 'gaming',
       facecam: fc,
+      bubblePx: FACE_PX,
       showBar: captions,
       onLog: log,
       onProgress: () => {},
@@ -354,6 +403,8 @@ try {
       mode: out.mode || '', encoder: out.encoder || '',
       peaks: c.peaks || [],
       facecam: Boolean(fc),
+      facecamPos: fc?.source || '',
+      facecamCrop: out.facecam ? `${out.facecam.side}@${out.facecam.cropX},${out.facecam.cropY}` : '',
       captions: words.length > 0,
       visuals: (out.broll?.assets || 0) + (out.broll?.cards || 0),
       broll: (broll || []).map((r) => ({ query: r.query, label: r.label, kind: r.kind, provider: r.provider })),
@@ -375,6 +426,17 @@ try {
     made.push(entry);
   }
 
+  // Guardrail: every clip must use the SAME facecam crop. If they differ, the
+  // old "random patch of the screen" bug is back — say so loudly in the log and
+  // in the manifest instead of letting it ship silently.
+  const faceCrops = made.map((m) => m.facecamCrop).filter(Boolean);
+  const facecamConsistent = faceCrops.length > 0 && new Set(faceCrops).size === 1;
+  if (FACE_LOCK) {
+    log(facecamConsistent
+      ? `facecam verified: ${faceCrops.length}/${made.length} clips use crop ${faceCrops[0]}`
+      : `facecam WARNING: clips use different crops (${[...new Set(faceCrops)].join(' | ')})`);
+  }
+
   const manifest = {
     version: 1,
     created: new Date().toISOString(),
@@ -383,6 +445,14 @@ try {
       duration: meta.duration, fps: meta.fps,
     },
     options: OPT,
+    facecam: {
+      pos: FACE_POS,
+      lock: FACE_LOCK?.source || null,
+      crop: faceCrops[0] || null,
+      consistent: facecamConsistent,
+      clips: faceCrops.length,
+      px: FACE_PX,
+    },
     stats: {
       words: tWords.length, sentences: sentenceCount,
       clips: made.length, scenes: scenes?.length || 0,

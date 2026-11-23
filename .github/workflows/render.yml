@@ -49,6 +49,26 @@ on:
         required: false
         default: 'auto'
         type: string
+      facecam_pos:
+        description: 'Facecam position (auto | bc | tl | tr | bl | br) — bc = bottom centre, used verbatim on every clip'
+        required: false
+        default: 'auto'
+        type: string
+      facecam_px:
+        description: 'Facecam bubble size in pixels (320-640, default 500)'
+        required: false
+        default: '500'
+        type: string
+      facecam_y:
+        description: 'Facecam crop centre as a fraction of height (blank = preset default, bc = 0.86)'
+        required: false
+        default: ''
+        type: string
+      facecam_side:
+        description: 'Facecam crop size as a fraction of the short side (default 0.34)'
+        required: false
+        default: ''
+        type: string
       runner:
         description: 'Runner label (ubuntu-24.04 | ubuntu-24.04-arm)'
         required: false
@@ -186,6 +206,10 @@ jobs:
           TITLE: ${{ inputs.title }}
           BROLL: ${{ inputs.broll }}
           FACECAM: ${{ inputs.facecam }}
+          FACECAM_POS: ${{ inputs.facecam_pos }}
+          FACECAM_PX: ${{ inputs.facecam_px }}
+          FACECAM_Y: ${{ inputs.facecam_y }}
+          FACECAM_SIDE: ${{ inputs.facecam_side }}
           FPS: ${{ inputs.fps }}
           SKIP: ${{ inputs.skip }}
         run: |
@@ -193,7 +217,11 @@ jobs:
             --src source.mp4 --out out \
             --mode "$MODE" --count "$COUNT" --template "$TEMPLATE" --look "$LOOK" \
             --music "$MUSIC" --title "$TITLE" --broll "$BROLL" --max-fps "$FPS" \
-            --facecam "${FACECAM:-auto}" --skip "${SKIP:-0}"
+            --facecam "${FACECAM:-auto}" --facecam-pos "${FACECAM_POS:-auto}" \
+            --facecam-px "${FACECAM_PX:-500}" \
+            ${FACECAM_Y:+--facecam-y "$FACECAM_Y"} \
+            ${FACECAM_SIDE:+--facecam-side "$FACECAM_SIDE"} \
+            --skip "${SKIP:-0}"
 
       - name: Notes
         env:

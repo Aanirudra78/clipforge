@@ -118,7 +118,7 @@ export async function renderClip({
   srcW = 1920, srcH = 1080, hasAudio = true, cuts = [], preview = false, edits = {},
   look = 'none', musicPath = null, musicBpm = 0, musicGain = 0.22, musicPulse = true,
   broll = null,
-  punchIns = null, showBar = true, engagement = false, facecam = null,
+  punchIns = null, showBar = true, engagement = false, facecam = null, bubblePx = 500,
   onProgress, onLog, retried = false,
 }) {
   const enc = await videoEncoder();
@@ -246,6 +246,15 @@ export async function renderClip({
     const loY = Math.min(padTop, Math.max(0, outH - fgH));
     const hiY = Math.max(loY, outH - fgH - padBottom);
     yPx = Math.round(clamp(outH * 0.36 - plan.y * fgH, loY, hiY));
+    // Reserve room for a fixed-size facecam bubble: the card slides up so the
+    // bubble is ALWAYS the same size in every clip instead of shrinking when
+    // the card happens to sit low.
+    if (facecam && Number.isFinite(facecam.x)) {
+      const slimWave = even(outH * 0.055);
+      const reserve = (Number.isFinite(bubblePx) ? bubblePx : 500) + slimWave + 64;
+      const ceiling = outH - reserve - fgH;
+      if (ceiling > loY) yPx = Math.round(Math.min(yPx, ceiling));
+    }
     hookTop = yPx;
     if (plan.reason !== 'punch') {
       onLog?.(`Auto framing: full frame over blur (${plan.reason})`);
@@ -429,6 +438,42 @@ export async function renderClip({
   };
   const accentHex = ACCENT_HEX[accent] || '0x39FF88';
 
+  // ---- facecam bubble geometry ----
+  // Decided BEFORE the engagement layer so the waveform and the bubble share the
+  // band instead of fighting for it. The bubble is centred in the empty space
+  // ABOVE the waveform; if the band is short the bubble shrinks rather than
+  // covering the audio visual.
+  const waveH = even(outH * (facecam ? 0.055 : 0.10));
+  const waveY = facecam ? outH - waveH - 10 : outH - even(outH * 0.115);
+  let fcLayout = null;
+  if (facecam && Number.isFinite(facecam.x) && Number.isFinite(facecam.y)) {
+    const fw = Math.max(8, (facecam.w || 0.1) * srcW);
+    const fh = Math.max(8, (facecam.h || 0.2) * srcH);
+    // A manual preset passes an explicit side (fraction of the short side), so
+    // the crop is identical on every clip. A detected face keeps the tight
+    // 1.25x crop around the face centre.
+    let side = Number.isFinite(facecam.side)
+      ? even(facecam.side * Math.min(srcW, srcH))
+      : even(Math.max(fw, fh) * 1.25);
+    side = Math.max(80, Math.min(side, even(Math.min(srcW, srcH) * 0.72)));
+    const cx = Math.round(facecam.x * srcW);
+    const cy = Math.round(facecam.y * srcH);
+    const cropX = Math.round(Math.max(0, Math.min(cx - side / 2, srcW - side)));
+    const cropY = Math.round(Math.max(0, Math.min(cy - side / 2, srcH - side)));
+    const bandTop = yPx + fgH;
+    const room = waveY - bandTop - 40;
+    const want = Number.isFinite(bubblePx) ? bubblePx : 500;
+    const cap = Math.min(outW * 0.47, want);
+    if (room >= 240) {
+      const B = even(Math.min(cap, room));
+      const fy = Math.max(bandTop + 16, waveY - B - 24);
+      const fx = Math.round((outW - B) / 2);
+      fcLayout = { side, cropX, cropY, B, fx, fy };
+    } else {
+      onLog?.('facecam bubble skipped: no room in the blur band');
+    }
+  }
+
   // Engagement layer (gaming): fill the dead blur band with a waveform that
   // dances with the game audio, and strobe an accent border on each impact.
   // Applied AFTER the grade/vignette so the neon stays bright, and just before
@@ -436,12 +481,14 @@ export async function renderClip({
   if (engagement && hasAudio) {
     const wColor = accentHex;
     const wW = even(outW * 0.82);
-    const wH = even(outH * 0.10);
+    const wH = waveH;
     const wX = Math.round((outW - wW) / 2);
-    const wY = outH - even(outH * 0.115);
+    const wY = waveY;
     // cline alone is a 1px hairline; a small blur turns it into a glowing neon
     // band that actually reads on a phone. log scale keeps quiet passages alive.
-    graph += `[engAud]aresample=44100,showwaves=size=${wW}x${wH}:mode=cline:colors=${wColor}:scale=log:draw=full,format=yuv420p,gblur=sigma=4,split=2[wc][wm];`;
+    // Filled cline reads as a real waveform (Audacity style). `cbrt` keeps the
+    // envelope visible instead of saturating to a solid slab the way log does.
+    graph += `[engAud]aresample=44100,showwaves=size=${wW}x${wH}:mode=cline:colors=${wColor}:scale=cbrt:draw=full,format=yuv420p,gblur=sigma=4,split=2[wc][wm];`;
     graph += `[wm]format=gray,lutyuv=y='clip((val-16)*4,0,255)'[waveMask];`;
     graph += `[wc][waveMask]alphamerge[wave];`;
     graph += `[${vLast}][wave]overlay=x=${wX}:y=${wY}:format=yuv420:eof_action=pass:shortest=0[veng];`;
@@ -465,29 +512,14 @@ export async function renderClip({
     onLog?.('engagement: soft EQ bars on card edge (strobe removed)');
   }
 
-  // Facecam bubble: cut a square around the detected YouTuber face and drop it
-  // into the empty blur band, BIG. The blur bed stays exactly as it is — the
-  // square simply sits on top of it. One static crop per clip, so it never
-  // jitters, and the main card still shows the whole game + original facecam.
-  if (facecam && Number.isFinite(facecam.x) && Number.isFinite(facecam.y)) {
-    const fw = Math.max(8, (facecam.w || 0.1) * srcW);
-    const fh = Math.max(8, (facecam.h || 0.2) * srcH);
-    // Tight crop around the face centre so it fills the square instead of
-    // floating inside a wide gameplay crop.
-    let side = even(Math.max(fw, fh) * 1.25);
-    side = Math.max(80, Math.min(side, even(Math.min(srcW, srcH) * 0.72)));
-    const cx = Math.round(facecam.x * srcW);
-    const cy = Math.round(facecam.y * srcH);
-    const cropX = Math.round(Math.max(0, Math.min(cx - side / 2, srcW - side)));
-    const cropY = Math.round(Math.max(0, Math.min(cy - side / 2, srcH - side)));
-    // Big and centred in the blur band; thin neutral outline, no colour pop.
-    const B = even(Math.min(outW * 0.42, 480));
+  // Facecam bubble: a square cut from the LOCKED facecam region, dropped into
+  // the empty blur band, BIG. The blur bed stays exactly as it is — the square
+  // simply sits on top of it. Same crop on every clip, so it can never show a
+  // random patch of the game screen.
+  if (fcLayout) {
+    const { side, cropX, cropY, B, fx, fy } = fcLayout;
     graph += `[vcF]crop=${side}:${side}:${cropX}:${cropY},scale=${B}:${B}:flags=bicubic,format=yuv420p[fcrop];`;
     graph += `[fcrop]drawbox=x=0:y=0:w=${B}:h=${B}:color=${accentHex}:t=3[fcb];`;
-    const waveTop = outH - even(outH * 0.115);
-    const bandTop = yPx + fgH;
-    const fy = Math.max(bandTop + 16, waveTop - B - 24);
-    const fx = Math.round((outW - B) / 2);
     graph += `[${vLast}][fcb]overlay=x=${fx}:y=${fy}:format=yuv420:eof_action=pass:shortest=0[vfc];`;
     vLast = 'vfc';
     onLog?.(`facecam bubble ${B}px at ${fx},${fy} (crop ${side}px @ ${cropX},${cropY})`);
@@ -551,7 +583,7 @@ export async function renderClip({
         id, source, start, end, crop, template, position, size, accent, title, zoom,
         punch, words, subject, srcW, srcH, hasAudio, cuts, preview, edits, look,
         musicPath, musicBpm, musicGain, musicPulse, broll, punchIns, showBar,
-        engagement, facecam, onProgress, onLog, retried: true,
+        engagement, facecam, bubblePx, onProgress, onLog, retried: true,
       });
     }
     if (mode === 'center') throw err;
@@ -561,7 +593,7 @@ export async function renderClip({
       id, source, start, end, crop: next, template, position, size, accent, title, zoom,
       punch: 1, words, subject: next === 'blur' ? null : subject, srcW, srcH, hasAudio, cuts, preview, edits, look,
       musicPath, musicBpm, musicGain, musicPulse, broll, punchIns, showBar,
-      engagement, facecam, onProgress, onLog,
+      engagement, facecam, bubblePx, onProgress, onLog,
     });
   }
 
@@ -586,6 +618,9 @@ export async function renderClip({
     music: musicPath ? { bpm: musicBpm || 0, gain: musicGain } : null,
     broll: { assets: brChains.length, cards: cards.length, planned: brRows.length },
     duration: dur,
+    facecam: fcLayout
+      ? { side: fcLayout.side, cropX: fcLayout.cropX, cropY: fcLayout.cropY, size: fcLayout.B, x: fcLayout.fx, y: fcLayout.fy }
+      : null,
     preview,
   };
 }

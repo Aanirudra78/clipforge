@@ -193,7 +193,19 @@
           <option value="off">Off</option>
         </select>
       </div>
+      <div>
+        <label for="facecamPos">Facecam position</label>
+        <select id="facecamPos">
+          <option value="auto" selected>Auto detect</option>
+          <option value="bc">Bottom centre (streams)</option>
+          <option value="br">Bottom right</option>
+          <option value="bl">Bottom left</option>
+          <option value="tr">Top right</option>
+          <option value="tl">Top left</option>
+        </select>
+      </div>
     </div>
+    <div class="note">A fixed position is used on <b>every</b> clip with the exact same crop, so the bubble can never show a random patch of the screen. Bottom centre is the usual layout for streams like iShowSpeed.</div>
     <label for="look">Colour look</label>
     <select id="look">
       <option value="none" selected>None (untouched)</option>
@@ -570,6 +582,7 @@
       title: $('title').value.trim(),
       broll: $('broll').value,
       facecam: $('facecam').value,
+      facecam_pos: $('facecamPos').value,
       fps: $('fps').value,
       // A release-hosted source carries its own tag and is auto-deleted by the
       // workflow; the manual tag box only applies to link-based sources.
@@ -869,6 +882,12 @@
     const gaming = $('mode').value === 'gaming';
     $('music').value = gaming ? 'none' : 'auto';
     $('broll').value = gaming ? 'off' : 'on';
+    // Streams keep the webcam bottom-centre, so lock that preset by default.
+    // It is a FIXED crop on every clip — never a per-clip guess.
+    if (gaming) {
+      $('facecam').value = 'on';
+      $('facecamPos').value = 'bc';
+    }
     note('modeNote', gaming
       ? 'Gaming: picks the loudest action (kills, explosions, reactions), keeps the whole frame with the facecam and HUD, punch-ins on the peaks, no music or b-roll. Captions appear only if real commentary is detected.'
       : 'Talk mode: finds the best spoken moments and adds topic b-roll inserts.',
